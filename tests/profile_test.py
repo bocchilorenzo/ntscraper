@@ -1,5 +1,5 @@
 import unittest
-from nitter_unofficial import Nitter
+from ntscraper import Nitter
 
 class TestProfile(unittest.TestCase):
     
