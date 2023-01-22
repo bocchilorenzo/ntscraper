@@ -6,8 +6,6 @@ from time import sleep
 from base64 import b64decode
 from random import uniform
 
-# pip install lxml
-
 
 class Nitter:
     def __init__(self):
@@ -488,7 +486,7 @@ class Nitter:
         """
         return random.choice(self.instances)
 
-    def scrape_tweets(self, term, mode='term', number=5, max_retries=5, instance=None):
+    def get_tweets(self, term, mode='term', number=5, max_retries=5, instance=None):
         """
         Scrape the specified term from Nitter
 
@@ -545,7 +543,7 @@ class Nitter:
                 .split("/enc/")[1]
                 .encode("utf-8")
             ).decode("utf-8")
-        elif soup.find("div", class_="profile-card-avatar").find("img"):
+        elif soup.find("a", class_="profile-card-avatar").find("img"):
             profile_image = (
                 "https://"
                 + unquote(
@@ -601,5 +599,12 @@ class Nitter:
                     .text.strip()
                     .replace(",", "")
                 ),
+                "media": int(
+                    soup.find("div", class_="photo-rail-header")
+                    .find("div", class_="icon-container")
+                    .text.strip()
+                    .replace(",", "")
+                    .split(" ")[0]
+                )
             },
         }

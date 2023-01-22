@@ -35,9 +35,9 @@ Then, choose the proper function for what you want to do from the following.
 ### Scrape tweets
 
 ```
-github_hash_tweets = scraper.scrape_tweets("github", mode='hashtag')
+github_hash_tweets = scraper.get_tweets("github", mode='hashtag')
 
-bezos_tweets = scraper.scrape_tweets("JeffBezos", mode='user')
+bezos_tweets = scraper.get_tweets("JeffBezos", mode='user')
 ```
 
 Parameters:
