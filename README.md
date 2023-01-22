@@ -17,7 +17,7 @@ If the instance to use is not provided to the scraper, it will use a random inst
 ## Installation
 
 ```
-pip install nitter_unofficial
+pip install ntscraper
 ```
 
 ## How to use
@@ -25,7 +25,7 @@ pip install nitter_unofficial
 First, initialize the library:
 
 ```
-from nitter_unofficial import Nitter
+from ntscraper import Nitter
 
 scraper = Nitter()
 ```
