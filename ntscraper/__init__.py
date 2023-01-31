@@ -1,1 +1,1 @@
-from nitter import Nitter
+from .nitter import Nitter
