@@ -5,10 +5,18 @@ from urllib.parse import unquote
 from time import sleep
 from base64 import b64decode
 from random import uniform
+from re import match
+from datetime import datetime
+import logging
 
 
 class Nitter:
-    def __init__(self):
+    def __init__(self, log_level=1):
+        """
+        Nitter scraper
+
+        :param log_level: logging level. Default 1
+        """
         self.instances = self.__get_instances()
         self.r = requests.Session()
         self.r.headers.update(
@@ -16,6 +24,14 @@ class Nitter:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; rv:108.0) Gecko/20100101 Firefox/108.0"
             }
         )
+        if log_level == 1:
+            log_level = logging.INFO
+        elif log_level == 2:
+            log_level = logging.WARNING
+        elif log_level:
+            raise ValueError("Invalid log level")
+        
+        logging.basicConfig(level=log_level, format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
 
     def __is_instance_encrypted(self, instance):
         """
@@ -66,7 +82,7 @@ class Nitter:
         """
         if instance is None:
             instance = self.get_random_instance()
-            print(f"No instance specified, using random instance {instance}")
+            logging.info(f"No instance specified, using random instance {instance}")
         keep_trying = True
         count = 0
         soup = None
@@ -76,7 +92,7 @@ class Nitter:
                     instance + endpoint, cookies={"hlsPlayback": "on", "infiniteScroll": ""}, timeout=5
                 )
             except:
-                print(f"{instance} unreachable, trying another random instance")
+                logging.warning(f"{instance} unreachable, trying another random instance")
                 instance = self.get_random_instance()
                 count += 1
                 sleep(1)
@@ -85,23 +101,27 @@ class Nitter:
                 soup = BeautifulSoup(self.r.text, "lxml")
                 if not soup.find(
                     lambda tag: tag.name == "div"
-                    and tag.get("class") == ["timeline-item"]
+                    and (tag.get("class") == ["timeline-item"] or tag.get("class") == ["timeline-item", "thread"])
                 ):
-                    print(
-                        f"Empty profile on {instance}, trying another random instance"
-                    )
-                    instance = self.get_random_instance()
-                    count += 1
+                    if soup.find_all("div", class_="show-more")[-1].find("a").text == "Load newest":
+                        keep_trying = False
+                        soup = None
+                    else:
+                        logging.warning(
+                            f"Empty profile on {instance}, trying another random instance"
+                        )
+                        instance = self.get_random_instance()
+                        count += 1
                 else:
                     keep_trying = False
             else:
-                print(f"Error fetching {instance}, trying another random instance")
+                logging.warning(f"Error fetching {instance}, trying another random instance")
                 instance = self.get_random_instance()
                 count += 1
             sleep(1)
 
         if count >= max_retries:
-            print("Max retries reached. Check your request and try again.")
+            logging.info("Max retries reached. Check your request and try again.")
             return None, None
 
         return instance, soup
@@ -393,16 +413,39 @@ class Nitter:
             "videos": videos,
             "gifs": gifs,
         }
+
+    def __check_date_validity(self, date):
+        """
+        Check if a date is valid
+
+        :param date: date to check
+        :return: True if date is valid
+        """
+        to_return = True
+        if not match(r"^\d{4}-\d{2}-\d{2}$", date):
+            to_return = False
+        try:
+            year, month, day = [int(number) for number in date.split("-")]
+            datetime(year=year,month=month,day=day)
+        except:
+            to_return = False
+        
+        if not (datetime(year=2006, month=3, day=21) < datetime(year=year,month=month,day=day) <= datetime.now()):
+            to_return = False
+        
+        return to_return
     
-    def __search(self, term, number=5, max_retries=5, instance=None, mode="term"):
+    def __search(self, term, mode, number, since, until, max_retries, instance):
         """
         Scrape the specified search terms from Nitter
 
         :param term: term to seach for
-        :param number: number of tweets to scrape. Default is 5
-        :param max_retries: max retries to scrape a page. Default is 5
-        :param instance: Nitter instance to use. Default is None
-        :param mode: search mode. Default is 'term'
+        :param number: number of tweets to scrape.
+        :param since: date to start scraping from.
+        :param until: date to stop scraping at.
+        :param max_retries: max retries to scrape a page.
+        :param instance: Nitter instance to use.
+        :param mode: search mode.
         :return: dictionary of tweets and threads for the term.
         """
         tweets = {"tweets": [], "threads": []}
@@ -411,9 +454,25 @@ class Nitter:
         elif mode == "term":
             endpoint = "/search?f=tweets&q=" + term
         elif mode == "user":
-            endpoint = f"/{term}"
+            if since or until:
+                endpoint = f"/{term}/search?f=tweets&q="
+            else:
+                endpoint = f"/{term}"
         else:
             raise ValueError("Invalid mode. Use 'term', 'hashtag', or 'user'.")
+
+        if since:
+            if self.__check_date_validity(since):
+                endpoint += f"&since={since}"
+            else:
+                raise ValueError("Invalid 'since' date. Use the YYYY-MM-DD format and make sure the date is valid.")
+        
+        if until:
+            if self.__check_date_validity(until):
+                endpoint += f"&until={until}"
+            else:
+                raise ValueError("Invalid 'until' date. Use the YYYY-MM-DD format and make sure the date is valid.")
+
         instance, soup = self.__get_page(endpoint, instance, max_retries)
 
         if instance is None or soup is None:
@@ -426,12 +485,12 @@ class Nitter:
         keep_scraping = True
         while keep_scraping:
             thread = []
-
+            
             for tweet in soup.find_all("div", class_="timeline-item"):
                 if len(tweet["class"]) == 1:
                     to_append = self.__extract_tweet(tweet, is_encrypted)
                     # Extract tweets
-                    if len(tweets["tweets"]) + len(tweets["threads"]) < number:
+                    if len(tweets["tweets"]) + len(tweets["threads"]) < number or (since and until) or since:
                         if self.__get_tweet_link(tweet) not in already_scraped:
                             tweets["tweets"].append(to_append)
                             already_scraped.add(self.__get_tweet_link(tweet))
@@ -450,32 +509,43 @@ class Nitter:
                             tweets["threads"].append(thread)
                             thread = []
 
-            if len(tweets["tweets"]) + len(tweets["threads"]) >= number:
+            if not(since and until) and not(since) and len(tweets["tweets"]) + len(tweets["threads"]) >= number:
                 keep_scraping = False
             else:
                 sleep(uniform(1, 2))
 
                 # Go to the next page
+                show_more_buttons = soup.find_all("div", class_="show-more")
                 if soup.find_all("div", class_="show-more"):
                     if mode == "user":
-                        next_page = (
-                            f"/{term}?"
-                            + soup.find_all("div", class_="show-more")[-1]
-                            .find("a")["href"]
-                            .split("?")[-1]
-                        )
+                        if since or until:
+                            next_page = (
+                                f"/{term}/search?"
+                                + show_more_buttons[-1]
+                                .find("a")["href"]
+                                .split("?")[-1]
+                            )
+                        else:
+                            next_page = (
+                                f"/{term}?"
+                                + show_more_buttons[-1]
+                                .find("a")["href"]
+                                .split("?")[-1]
+                            )
                     else:
                         next_page = (
                             "/search"
-                            + soup.find_all("div", class_="show-more")[-1].find("a")[
+                            + show_more_buttons[-1].find("a")[
                                 "href"
                             ]
                         )
                     instance, soup = self.__get_page(next_page, instance, max_retries)
                     if instance is None or soup is None:
-                        break
+                        keep_scraping = False
                 else:
-                    break
+                    keep_scraping = False
+            
+            logging.info(f"Total tweets: {len(tweets['tweets'])}; Total threads: {len(tweets['threads'])}")
         return tweets
 
     def get_random_instance(self):
@@ -486,18 +556,20 @@ class Nitter:
         """
         return random.choice(self.instances)
 
-    def get_tweets(self, term, mode='term', number=5, max_retries=5, instance=None):
+    def get_tweets(self, term, mode='term', number=5, since=None, until=None, max_retries=5, instance=None):
         """
         Scrape the specified term from Nitter
 
         :param term: string to search for
         :param mode: search mode. Default is 'term', can also be 'hashtag' or 'user'
-        :param number: number of tweets to scrape. Default is 5
+        :param number: number of tweets to scrape. Default is 5. If 'since' is specified, this is bypassed.
+        :param since: date to start scraping from, formatted as YYYY-MM-DD. Default is None
+        :param until: date to stop scraping at, formatted as YYYY-MM-DD. Default is None
         :param max_retries: max retries to scrape a page. Default is 5
         :param instance: Nitter instance to use. Default is None
         :return: dictionary with tweets and threads for the term
         """
-        return self.__search(term, number, max_retries, instance, mode)
+        return self.__search(term, mode, number, since, until, max_retries, instance)
 
     def get_profile_info(self, username, max_retries=5, instance=None):
         """

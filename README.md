@@ -27,8 +27,12 @@ First, initialize the library:
 ```
 from ntscraper import Nitter
 
-scraper = Nitter()
+scraper = Nitter(log_level=None)
 ```
+The valid logging levels are:
+- None = no logs
+- 1 = informational logs (default)
+- 2 = informational, warning and error logs
 
 Then, choose the proper function for what you want to do from the following.
 
@@ -43,7 +47,9 @@ bezos_tweets = scraper.get_tweets("JeffBezos", mode='user')
 Parameters:
 - term: search term
 - mode: modality to scrape the tweets. Default is 'term' which will look for tweets containing the search term. Other modes are 'hashtag' to search for a hashtag and 'user' to scrape tweets from a user profile
-- number: number of tweets to scrape. Default is 5
+- number: number of tweets to scrape. Default is 5. If 'since' is specified, this is bypassed.
+- since: date to start scraping from, formatted as YYYY-MM-DD. Default is None
+- until: date to stop scraping at, formatted as YYYY-MM-DD. Default is None
 - max_retries: max retries to scrape a page. Default is 5
 - instance: Nitter instance to use. Default is None and will be chosen at random
 

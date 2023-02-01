@@ -29,3 +29,11 @@ class TestProfile(unittest.TestCase):
             nitter = Nitter()
             tweets = nitter.get_tweets("Twitter", 'user')
             self.assertGreater(len(tweets['tweets']), 0)
+
+        def scrape_profile_tweets_since(self):
+            """
+            Test scraping profile tweets of a username (Twitter, we need a stable username) in a certain time period
+            """
+            nitter = Nitter()
+            tweets = nitter.get_tweets("Twitter", mode='user', since='2022-12-01', until='2022-12-31', number=1)
+            self.assertGreater(len(tweets['threads']), 1)
