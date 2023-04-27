@@ -315,7 +315,7 @@ class Nitter:
         """
         return (
             tweet.find("span", class_="tweet-date")
-            .find("a")["href"]
+            .find("a")["title"]
             .split("/")[-1]
             .split("#")[0]
         )
