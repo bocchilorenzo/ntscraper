@@ -27,12 +27,12 @@ First, initialize the library:
 ```
 from ntscraper import Nitter
 
-scraper = Nitter(log_level=None)
+scraper = Nitter(log_level=1)
 ```
 The valid logging levels are:
 - None = no logs
-- 1 = informational logs (default)
-- 2 = informational, warning and error logs
+- 0 = only warning and error logs
+- 1 = previous + informational logs (default)
 
 Then, choose the proper function for what you want to do from the following.
 
@@ -75,6 +75,10 @@ random_instance = scraper.get_random_instance()
 ```
 
 Returns a random Nitter instance.
+
+## Note
+
+Unfortunately, at the moment searching for tweets either via 'term' or 'hashtag' doesn't work because Twitter removed the ability to search without being registered, and as consequence Nitter's search is broken. You can still scrape user profiles.
 
 ## To do list
 

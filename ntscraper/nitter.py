@@ -24,10 +24,10 @@ class Nitter:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; rv:108.0) Gecko/20100101 Firefox/108.0"
             }
         )
-        if log_level == 1:
-            log_level = logging.INFO
-        elif log_level == 2:
+        if log_level == 0:
             log_level = logging.WARNING
+        elif log_level == 1:
+            log_level = logging.INFO
         elif log_level:
             raise ValueError("Invalid log level")
         
@@ -121,7 +121,7 @@ class Nitter:
             sleep(1)
 
         if count >= max_retries:
-            logging.info("Max retries reached. Check your request and try again.")
+            logging.warning("Max retries reached. Check your request and try again.")
             return None, None
 
         return instance, soup
@@ -380,6 +380,9 @@ class Nitter:
 
         # Extract media from the quoted tweet
         if quoted_tweet:
+            deleted = False
+            if quoted_tweet["class"] == ["quote", "unavailable"]:
+                deleted = True
             (
                 quoted_pictures,
                 quoted_videos,
@@ -398,10 +401,10 @@ class Nitter:
             is not None,
             "external-link": self.__get_external_link(tweet),
             "quoted-post": {
-                "link": self.__get_tweet_link(quoted_tweet),
-                "text": self.__get_tweet_text(quoted_tweet),
-                "user": self.__get_user(quoted_tweet, is_encrypted),
-                "date": self.__get_tweet_date(quoted_tweet),
+                "link": self.__get_tweet_link(quoted_tweet) if not deleted else "",
+                "text": self.__get_tweet_text(quoted_tweet) if not deleted else "",
+                "user": self.__get_user(quoted_tweet, is_encrypted) if not deleted else {},
+                "date": self.__get_tweet_date(quoted_tweet) if not deleted else "",
                 "pictures": quoted_pictures,
                 "videos": quoted_videos,
                 "gifs": quoted_gifs,
@@ -509,6 +512,7 @@ class Nitter:
                             tweets["threads"].append(thread)
                             thread = []
 
+            logging.info(f"Current stats: {len(tweets['tweets'])} tweets, {len(tweets['threads'])} threads...")
             if not(since and until) and not(since) and len(tweets["tweets"]) + len(tweets["threads"]) >= number:
                 keep_scraping = False
             else:
@@ -544,8 +548,6 @@ class Nitter:
                         keep_scraping = False
                 else:
                     keep_scraping = False
-            
-            logging.info(f"Total tweets: {len(tweets['tweets'])}; Total threads: {len(tweets['threads'])}")
         return tweets
 
     def get_random_instance(self):
