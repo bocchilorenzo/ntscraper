@@ -333,6 +333,7 @@ class Nitter:
             .replace("\n", " ")
             if tweet.find("div", class_="tweet-content media-body")
             else tweet.find("div", class_="quote-text").text.strip().replace("\n", " ")
+            if tweet.find("div", class_="quote-text") else ""
         )
 
     def __get_tweet_link(self, tweet):
