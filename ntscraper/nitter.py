@@ -61,12 +61,19 @@ class Nitter:
         instance_list = []
         if self.r.ok:
             soup = BeautifulSoup(self.r.text, "lxml")
+            official = soup.find_all("tbody")[0]
+            instance_list.append(official.find("a")["href"])
             table = soup.find_all("tbody")[1]
             for instance in table.find_all("tr"):
-                url = instance.find("a").contents[0]
-                if not url.endswith(".onion"):
-                    url = "https://" + url
-                    instance_list.append(url)
+                columns = instance.find_all("td")
+                if (
+                    columns[1].find("g-emoji") and columns[1].find("g-emoji").get("alias") == "white_check_mark"
+                    ) and (
+                    columns[2].find("g-emoji") and columns[2].find("g-emoji").get("alias") == "white_check_mark"
+                ):
+                    url = instance.find("a")["href"]
+                    if not url.endswith(".onion"):
+                        instance_list.append(url)
             return instance_list
         else:
             return None

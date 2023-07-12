@@ -82,4 +82,4 @@ Unfortunately, at the moment searching for tweets either via 'term' or 'hashtag'
 
 ## To do list
 
-- [ ] Add scraping of posts and comments
+- [ ] Add scraping of individual posts with comments

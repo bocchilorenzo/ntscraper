@@ -2,7 +2,6 @@ import unittest
 from ntscraper import Nitter
 
 class TestSearch(unittest.TestCase):
-
     def scrape_term(self):
         """
         Test scraping a term
@@ -20,8 +19,8 @@ class TestSearch(unittest.TestCase):
         self.assertGreater(len(tweets['tweets']), 0)
 
     def random_instance(self):
-            """
-            Test whether a random instance is returned
-            """
-            nitter = Nitter()
-            self.assertIsNotNone(nitter.get_random_instance())
+        """
+        Test whether a random instance is returned
+        """
+        nitter = Nitter()
+        self.assertIsNotNone(nitter.get_random_instance())
