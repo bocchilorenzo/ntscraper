@@ -40,7 +40,7 @@ class Nitter:
         :param instance: Nitter instance
         :return: True if encrypted, False otherwise
         """
-        instance_new, soup = self.__get_page("/Twitter", instance)
+        instance_new, soup = self.__get_page("/x", instance)
 
         if (
             soup.find("a", class_="profile-card-avatar").find("img")
