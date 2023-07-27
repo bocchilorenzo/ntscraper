@@ -78,7 +78,7 @@ Returns a random Nitter instance.
 
 ## Note
 
-Unfortunately, at the moment searching for tweets either via 'term' or 'hashtag' doesn't work because Twitter removed the ability to search without being registered, and as consequence Nitter's search is broken. You can still scrape user profiles.
+Some Nitter instances may not work properly due to recent changes on Twitter's side. If you have trouble scraping with a certain instance, try changing it and check if the problem persists.
 
 ## To do list
 
