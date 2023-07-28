@@ -217,7 +217,8 @@ class Nitter:
                 videos = [
                     b64decode(video["data-url"].split("/")[-1].encode("utf-8")).decode(
                         "utf-8"
-                    )
+                    ) if "data-url" in video.attrs
+                    else video.find("source")["src"]
                     for video in tweet.find("div", class_="tweet-body")
                     .find("div", class_="attachments", recursive=False)
                     .find_all("video", class_="")
