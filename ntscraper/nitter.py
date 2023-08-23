@@ -67,9 +67,9 @@ class Nitter:
             for instance in table.find_all("tr"):
                 columns = instance.find_all("td")
                 if (
-                    columns[1].find("g-emoji") and columns[1].find("g-emoji").get("alias") == "white_check_mark"
+                    columns[1].text.strip() == "✅"
                     ) and (
-                    columns[2].find("g-emoji") and columns[2].find("g-emoji").get("alias") == "white_check_mark"
+                    columns[2].text.strip() == "✅"
                 ):
                     url = instance.find("a")["href"]
                     if not url.endswith(".onion"):
@@ -110,7 +110,8 @@ class Nitter:
                     lambda tag: tag.name == "div"
                     and (tag.get("class") == ["timeline-item"] or tag.get("class") == ["timeline-item", "thread"])
                 ):
-                    if soup.find_all("div", class_="show-more")[-1].find("a").text == "Load newest":
+                    bottom_page = soup.find_all("div", class_="show-more")
+                    if bottom_page and bottom_page[-1].find("a").text == "Load newest":
                         keep_trying = False
                         soup = None
                     else:
@@ -122,8 +123,9 @@ class Nitter:
                 else:
                     keep_trying = False
             else:
-                logging.warning(f"Error fetching {instance}, trying another random instance")
+                old_instance = instance
                 instance = self.get_random_instance()
+                logging.warning(f"Error fetching {old_instance}, trying {instance}")
                 count += 1
             sleep(1)
 
@@ -156,7 +158,8 @@ class Nitter:
                 quoted_videos = [
                     b64decode(video["data-url"].split("/")[-1].encode("utf-8")).decode(
                         "utf-8"
-                    )
+                    ) if "data-url" in video.attrs
+                    else video.find("source")["src"]
                     for video in quoted_tweet.find(
                         "div", class_="attachments"
                     ).find_all("video", class_="")
@@ -180,6 +183,8 @@ class Nitter:
                 ]
                 quoted_videos = [
                     unquote("https" + video["data-url"].split("https")[1])
+                    if "data-url" in video.attrs
+                    else unquote(video.find("source")["src"])
                     for video in quoted_tweet.find(
                         "div", class_="attachments"
                     ).find_all("video", class_="")
