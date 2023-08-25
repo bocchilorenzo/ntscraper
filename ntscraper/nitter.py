@@ -247,6 +247,8 @@ class Nitter:
                 ]
                 videos = [
                     unquote("https" + video["data-url"].split("https")[1])
+                    if "data-url" in video.attrs
+                    else video.find("source")["src"]
                     for video in tweet.find("div", class_="tweet-body")
                     .find("div", class_="attachments", recursive=False)
                     .find_all("video", class_="")
