@@ -10,7 +10,7 @@ This is a simple library to scrape Nitter instances for tweets. It can:
 
 - get profile information of a user, such as display name, username, number of tweets, profile picture ...
 
-If the instance to use is not provided to the scraper, it will use a random instance among those listed in https://github.com/zedeus/nitter/wiki/Instances.
+If the instance to use is not provided to the scraper, it will use a random instance among those listed as "online" and "working" in https://github.com/zedeus/nitter/wiki/Instances.
 
 ---
 
@@ -78,7 +78,7 @@ Returns a random Nitter instance.
 
 ## Note
 
-Some Nitter instances may not work properly due to recent changes on Twitter's side. If you have trouble scraping with a certain instance, try changing it and check if the problem persists.
+Due to recent changes on Twitter's side, some Nitter instances may not work properly even if they are marked as "working" on Nitter's wiki. If you have trouble scraping with a certain instance, try changing it and check if the problem persists.
 
 ## To do list
 

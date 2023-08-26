@@ -18,12 +18,7 @@ class Nitter:
         :param log_level: logging level. Default 1
         """
         self.instances = self.__get_instances()
-        self.r = requests.Session()
-        self.r.headers.update(
-            {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; rv:108.0) Gecko/20100101 Firefox/108.0"
-            }
-        )
+        self.__initialize_session()
         if log_level == 0:
             log_level = logging.WARNING
         elif log_level == 1:
@@ -32,6 +27,17 @@ class Nitter:
             raise ValueError("Invalid log level")
         
         logging.basicConfig(level=log_level, format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
+
+    def __initialize_session(self):
+        """
+        Initialize the requests session
+        """
+        self.r = requests.Session()
+        self.r.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0"
+            }
+        )
 
     def __is_instance_encrypted(self, instance):
         """
@@ -92,6 +98,7 @@ class Nitter:
             logging.info(f"No instance specified, using random instance {instance}")
         keep_trying = True
         count = 0
+        cooldown_count = 0
         soup = None
         while keep_trying and count < max_retries:
             try:
@@ -123,11 +130,17 @@ class Nitter:
                 else:
                     keep_trying = False
             else:
-                old_instance = instance
-                instance = self.get_random_instance()
-                logging.warning(f"Error fetching {old_instance}, trying {instance}")
+                if "cursor" in endpoint and cooldown_count < max_retries:
+                    logging.warning("Cooldown reached, trying again in 10 seconds")
+                    cooldown_count += 1
+                    sleep(10)
+                else:
+                    cooldown_count = 0
+                    old_instance = instance
+                    instance = self.get_random_instance()
+                    logging.warning(f"Error fetching {old_instance}, trying {instance}")
                 count += 1
-            sleep(1)
+            sleep(2)
 
         if count >= max_retries:
             logging.warning("Max retries reached. Check your request and try again.")
