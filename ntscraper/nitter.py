@@ -18,7 +18,6 @@ class Nitter:
         :param log_level: logging level. Default 1
         """
         self.instances = self.__get_instances()
-        self.__initialize_session()
         if log_level == 0:
             log_level = logging.WARNING
         elif log_level == 1:
@@ -28,10 +27,20 @@ class Nitter:
         
         logging.basicConfig(level=log_level, format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
 
-    def __initialize_session(self):
+        self.retry_count = 0
+        self.cooldown_count = 0
+        self.session_reset = False
+        self.instance = ""
+
+    def __initialize_session(self, instance):
         """
         Initialize the requests session
         """
+        if instance is None:
+            self.instance = self.get_random_instance()
+            logging.info(f"No instance specified, using random instance {self.instance}")
+        else:
+            self.instance = instance
         self.r = requests.Session()
         self.r.headers.update(
             {
@@ -39,14 +48,13 @@ class Nitter:
             }
         )
 
-    def __is_instance_encrypted(self, instance):
+    def __is_instance_encrypted(self):
         """
-        Check if the instance uses encrypted media
+        Check if the current instance uses encrypted media
 
-        :param instance: Nitter instance
         :return: True if encrypted, False otherwise
         """
-        instance_new, soup = self.__get_page("/x", instance)
+        instance_new, soup = self.__get_page("/x")
 
         if (
             soup.find("a", class_="profile-card-avatar").find("img")
@@ -63,10 +71,10 @@ class Nitter:
 
         :return: list of Nitter instances, or None if lookup failed
         """
-        self.r = requests.get("https://github.com/zedeus/nitter/wiki/Instances")
+        r = requests.get("https://github.com/zedeus/nitter/wiki/Instances")
         instance_list = []
-        if self.r.ok:
-            soup = BeautifulSoup(self.r.text, "lxml")
+        if r.ok:
+            soup = BeautifulSoup(r.text, "lxml")
             official = soup.find_all("tbody")[0]
             instance_list.append(official.find("a")["href"])
             table = soup.find_all("tbody")[1]
@@ -83,35 +91,36 @@ class Nitter:
             return instance_list
         else:
             return None
+        
+    def __get_new_instance(self, message):
+        instance = self.get_random_instance()
+        logging.warning(f"{message}. Trying {instance}")
+        return instance
 
-    def __get_page(self, endpoint, instance, max_retries=5):
+    def __get_page(self, endpoint, max_retries=5):
         """
         Download page from Nitter instance
 
-        :param instance: Nitter instance to use
         :param endpoint: endpoint to use
         :param max_retries: max number of retries, default 5
-        :return: instance used and page content, or None if max retries reached
+        :return: page content, or None if max retries reached
         """
-        if instance is None:
-            instance = self.get_random_instance()
-            logging.info(f"No instance specified, using random instance {instance}")
         keep_trying = True
-        count = 0
-        cooldown_count = 0
         soup = None
-        while keep_trying and count < max_retries:
+        while keep_trying and (self.retry_count < max_retries):
             try:
                 self.r = requests.get(
-                    instance + endpoint, cookies={"hlsPlayback": "on", "infiniteScroll": ""}, timeout=5
+                    self.instance + endpoint, cookies={"hlsPlayback": "on", "infiniteScroll": ""}, timeout=5
                 )
             except:
-                logging.warning(f"{instance} unreachable, trying another random instance")
-                instance = self.get_random_instance()
-                count += 1
+                self.__initialize_session(instance = self.__get_new_instance(f"{self.instance} unreachable"))
+                self.retry_count += 1
+                self.cooldown_count = 0
+                self.session_reset = True
                 sleep(1)
                 continue
             if self.r.ok:
+                self.session_reset = False
                 soup = BeautifulSoup(self.r.text, "lxml")
                 if not soup.find(
                     lambda tag: tag.name == "div"
@@ -122,31 +131,32 @@ class Nitter:
                         keep_trying = False
                         soup = None
                     else:
-                        logging.warning(
-                            f"Empty profile on {instance}, trying another random instance"
-                        )
-                        instance = self.get_random_instance()
-                        count += 1
+                        self.__initialize_session(self.__get_new_instance(f"Empty profile on {self.instance}"))
+                        self.retry_count += 1
                 else:
                     keep_trying = False
             else:
-                if "cursor" in endpoint and cooldown_count < max_retries:
-                    logging.warning("Cooldown reached, trying again in 10 seconds")
-                    cooldown_count += 1
-                    sleep(10)
+                if "cursor" in endpoint:
+                    if not self.session_reset:
+                        logging.warning("Cooldown reached, trying again in 20 seconds")
+                        self.cooldown_count += 1
+                        sleep(20)
+                    if self.cooldown_count >= 5 and not self.session_reset:
+                        self.__initialize_session()
+                        self.session_reset = True
+                        self.cooldown_count = 0
+                    elif self.session_reset:
+                        self.__initialize_session(self.__get_new_instance(f"Error fetching {self.instance}"))
                 else:
-                    cooldown_count = 0
-                    old_instance = instance
-                    instance = self.get_random_instance()
-                    logging.warning(f"Error fetching {old_instance}, trying {instance}")
-                count += 1
+                    self.cooldown_count = 0
+                    self.__initialize_session(self.__get_new_instance(f"Error fetching {self.instance}"))
+                self.retry_count += 1
             sleep(2)
-
-        if count >= max_retries:
+        if self.retry_count >= max_retries:
             logging.warning("Max retries reached. Check your request and try again.")
             return None, None
 
-        return instance, soup
+        return soup
 
     def __get_quoted_media(self, quoted_tweet, is_encrypted):
         """
@@ -492,6 +502,8 @@ class Nitter:
                 endpoint = f"/{term}"
         else:
             raise ValueError("Invalid mode. Use 'term', 'hashtag', or 'user'.")
+        
+        self.__initialize_session(instance)
 
         if since:
             if self.__check_date_validity(since):
@@ -505,13 +517,14 @@ class Nitter:
             else:
                 raise ValueError("Invalid 'until' date. Use the YYYY-MM-DD format and make sure the date is valid.")
 
-        instance, soup = self.__get_page(endpoint, instance, max_retries)
+        soup = self.__get_page(endpoint, max_retries)
 
-        if instance is None or soup is None:
+
+        if soup is None:
             return None
 
-        is_encrypted = self.__is_instance_encrypted(instance)
-
+        is_encrypted = self.__is_instance_encrypted()
+        
         already_scraped = set()
 
         keep_scraping = True
@@ -572,8 +585,8 @@ class Nitter:
                                 "href"
                             ]
                         )
-                    instance, soup = self.__get_page(next_page, instance, max_retries)
-                    if instance is None or soup is None:
+                    soup = self.__get_page(next_page, max_retries)
+                    if soup is None:
                         keep_scraping = False
                 else:
                     keep_scraping = False
@@ -611,11 +624,12 @@ class Nitter:
         :param instance: Nitter instance to use. Default is None
         :return: dictionary of the profile's information
         """
-        instance, soup = self.__get_page(f"/{username}", instance, max_retries)
-        if instance is None or soup is None:
+        self.__initialize_session(instance)
+        soup = self.__get_page(f"/{username}", max_retries)
+        if soup is None:
             return None
 
-        is_encrypted = self.__is_instance_encrypted(instance)
+        is_encrypted = self.__is_instance_encrypted()
         # Extract id if the banner exists, no matter if the instance uses base64 or not
         if soup.find("div", class_="profile-banner").find("img") and is_encrypted:
             profile_id = (
