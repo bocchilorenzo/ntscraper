@@ -54,7 +54,10 @@ class Nitter:
 
         :return: True if encrypted, False otherwise
         """
-        instance_new, soup = self.__get_page("/x")
+        soup = self.__get_page("/x")
+
+        if soup is None:
+            raise ValueError("Invalid instance")
 
         if (
             soup.find("a", class_="profile-card-avatar").find("img")
@@ -152,9 +155,11 @@ class Nitter:
                     self.__initialize_session(self.__get_new_instance(f"Error fetching {self.instance}"))
                 self.retry_count += 1
             sleep(2)
-        if self.retry_count >= max_retries:
+        current_retry_count = self.retry_count
+        self.retry_count = 0
+        if current_retry_count >= max_retries:
             logging.warning("Max retries reached. Check your request and try again.")
-            return None, None
+            return None
 
         return soup
 
