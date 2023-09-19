@@ -24,7 +24,7 @@ pip install ntscraper
 
 First, initialize the library:
 
-```
+```python
 from ntscraper import Nitter
 
 scraper = Nitter(log_level=1)
@@ -38,7 +38,7 @@ Then, choose the proper function for what you want to do from the following.
 
 ### Scrape tweets
 
-```
+```python
 github_hash_tweets = scraper.get_tweets("github", mode='hashtag')
 
 bezos_tweets = scraper.get_tweets("JeffBezos", mode='user')
@@ -55,9 +55,23 @@ Parameters:
 
 Returns a dictionary with tweets and threads for the term.
 
+#### Multiprocessing
+
+You can also scrape multiple terms at once using multiprocessing:
+
+```python
+terms = ["github", "bezos", "musk"]
+
+results = scraper.get_tweets_multiprocessing(terms, mode='term')
+```
+
+Each term will be scraped in a different process. The result will be a list of dictionaries, one for each term.
+
+NOTE: with multiprocessing, only full logging is supported. Also, the number of processes is limited to the number of available cores on your machine. Finally, you could experience more rate limiting with multiprocessing (still investigating this).
+
 ### Get profile information
 
-```
+```python
 bezos_information = scraper.get_profile_info("JeffBezos")
 ```
 
@@ -70,7 +84,7 @@ Returns a dictionary of the profile's information.
 
 ### Get random Nitter instance
 
-```
+```python
 random_instance = scraper.get_random_instance()
 ```
 
