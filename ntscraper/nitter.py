@@ -5,7 +5,7 @@ from urllib.parse import unquote
 from time import sleep
 from base64 import b64decode
 from random import uniform
-from re import match
+from re import match, sub
 from datetime import datetime
 import logging
 from logging.handlers import QueueHandler
@@ -672,12 +672,16 @@ class Nitter:
         :return: dictionary or array with dictionaries (in case of multiple terms) of the tweets and threads for the provided terms
         """
         if type(terms) == str:
+            term = sub(r"[^A-Za-z0-9_]", "", terms)
+
             return self._search(
-                terms, mode, number, since, until, max_retries, instance
+                term, mode, number, since, until, max_retries, instance
             )
         elif len(terms) == 1:
+            term = sub(r"[^A-Za-z0-9_]", "", terms[0])
+
             return self._search(
-                terms[0], mode, number, since, until, max_retries, instance
+                term, mode, number, since, until, max_retries, instance
             )
         else:
             if len(terms) > cpu_count():
@@ -686,11 +690,12 @@ class Nitter:
                 )
 
             args = [
-                (term, mode, number, since, until, max_retries, instance)
+                (sub(r"[^A-Za-z0-9_]", "", term), mode, number, since, until, max_retries, instance)
                 for term in terms
             ]
             with Pool(len(terms)) as p:
                 results = list(p.map(self._search_dispatch, args))
+            
             return results
 
     def get_profile_info(self, username, max_retries=5, instance=None):
@@ -703,6 +708,7 @@ class Nitter:
         :return: dictionary of the profile's information
         """
         self._initialize_session(instance)
+        username = sub(r"[^A-Za-z0-9_]", "", username)
         soup = self._get_page(f"/{username}", max_retries)
         if soup is None:
             return None
