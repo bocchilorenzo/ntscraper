@@ -754,6 +754,8 @@ class Nitter:
         else:
             profile_image = ""
 
+        icon_container = soup.find("div", class_="photo-rail-header").find("div", class_="icon-container") if soup.find("div", class_="photo-rail-header") else None
+
         return {
             "image": profile_image,
             "name": soup.find("a", class_="profile-card-fullname").text.strip(),
@@ -801,11 +803,12 @@ class Nitter:
                     .replace(",", "")
                 ),
                 "media": int(
-                    soup.find("div", class_="photo-rail-header")
-                    .find("div", class_="icon-container")
+                    icon_container
                     .text.strip()
                     .replace(",", "")
                     .split(" ")[0]
+                    if icon_container
+                    else 0
                 ),
             },
         }
