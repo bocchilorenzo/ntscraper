@@ -98,7 +98,7 @@ class Nitter:
             soup = BeautifulSoup(r.text, "lxml")
             official = soup.find_all("tbody")[0]
             instance_list.append(official.find("a")["href"])
-            table = soup.find_all("tbody")[1]
+            table = soup.find_all("tbody")[2]
             for instance in table.find_all("tr"):
                 columns = instance.find_all("td")
                 if (columns[1].text.strip() == "✅") and (
