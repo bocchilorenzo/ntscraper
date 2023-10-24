@@ -33,6 +33,8 @@ class Nitter:
         :param log_level: logging level. Default 1
         """
         self.instances = self._get_instances()
+        self.working_instances = []
+        self._test_all_instances("/x", no_print=True)
         if log_level == 0:
             log_level = logging.WARNING
         elif log_level == 1:
@@ -62,7 +64,7 @@ class Nitter:
         self.r = requests.Session()
         self.r.headers.update(
             {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0"
             }
         )
 
@@ -110,6 +112,52 @@ class Nitter:
             return instance_list
         else:
             return None
+        
+    def _test_instance(self, args):
+        """
+        Test a Nitter instance
+
+        :param args: tuple of instance and endpoint to use
+        :return: instance if it works, None otherwise
+        """
+        instance, endpoint = args
+        self._initialize_session(instance)
+        req_session = requests.Session()
+        req_session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0"
+            }
+        )
+        try:
+            r = req_session.get(
+                instance + endpoint,
+                cookies={"hlsPlayback": "on", "infiniteScroll": ""},
+                timeout=10,
+            )
+            if r.ok:
+                soup = BeautifulSoup(r.text, "lxml")
+                if soup is not None and len(soup.find_all("div", class_="timeline-item")):
+                    return instance
+        except:
+            return None
+
+    def _test_all_instances(self, endpoint, no_print=False):
+        """
+        Test all Nitter instances when a high number of retries is detected
+
+        :param endpoint: endpoint to use
+        :param no_print: True if no output should be printed
+        """
+        if not no_print:
+            print("High number of retries detected. Testing all instances...")
+        with Pool(cpu_count() - 1) as p:
+            working_instances = list(
+                p.map(self._test_instance, [(instance, endpoint) for instance in self.instances])
+            )
+        working_instances = [instance for instance in working_instances if instance]
+        if not no_print:
+            print("New working instances:", ", ".join(working_instances))
+        self.working_instances = working_instances
 
     def _get_new_instance(self, message):
         instance = self.get_random_instance()
@@ -128,12 +176,14 @@ class Nitter:
         soup = None
         while keep_trying and (self.retry_count < max_retries):
             try:
-                self.r = requests.get(
+                r = self.r.get(
                     self.instance + endpoint,
                     cookies={"hlsPlayback": "on", "infiniteScroll": ""},
-                    timeout=5,
+                    timeout=10,
                 )
             except:
+                if self.retry_count == max_retries // 2:
+                    self._test_all_instances(endpoint)
                 self._initialize_session(
                     instance=self._get_new_instance(f"{self.instance} unreachable")
                 )
@@ -142,9 +192,9 @@ class Nitter:
                 self.session_reset = True
                 sleep(1)
                 continue
-            if self.r.ok:
+            if r.ok:
                 self.session_reset = False
-                soup = BeautifulSoup(self.r.text, "lxml")
+                soup = BeautifulSoup(r.text, "lxml")
                 if not soup.find(
                     lambda tag: tag.name == "div"
                     and (
@@ -164,25 +214,28 @@ class Nitter:
                 else:
                     keep_trying = False
             else:
-                if "cursor" in endpoint:
-                    if not self.session_reset:
-                        logging.warning("Cooldown reached, trying again in 20 seconds")
-                        self.cooldown_count += 1
-                        sleep(20)
-                    if self.cooldown_count >= 5 and not self.session_reset:
-                        self._initialize_session()
-                        self.session_reset = True
+                if self.retry_count == max_retries // 2:
+                    self._test_all_instances(endpoint)
+                else:
+                    if "cursor" in endpoint:
+                        if not self.session_reset:
+                            logging.warning("Cooldown reached, trying again in 20 seconds")
+                            self.cooldown_count += 1
+                            sleep(20)
+                        if self.cooldown_count >= 5 and not self.session_reset:
+                            self._initialize_session()
+                            self.session_reset = True
+                            self.cooldown_count = 0
+                        elif self.session_reset:
+                            self._initialize_session(
+                                self._get_new_instance(f"Error fetching {self.instance}")
+                            )
+                    else:
                         self.cooldown_count = 0
-                    elif self.session_reset:
                         self._initialize_session(
                             self._get_new_instance(f"Error fetching {self.instance}")
                         )
-                else:
-                    self.cooldown_count = 0
-                    self._initialize_session(
-                        self._get_new_instance(f"Error fetching {self.instance}")
-                    )
-                self.retry_count += 1
+                    self.retry_count += 1
             sleep(2)
         current_retry_count = self.retry_count
         self.retry_count = 0
@@ -647,7 +700,7 @@ class Nitter:
 
         :return: URL of random Nitter instance
         """
-        return random.choice(self.instances)
+        return random.choice(self.working_instances)
 
     def get_tweets(
         self,
