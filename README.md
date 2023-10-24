@@ -67,7 +67,7 @@ results = scraper.get_tweets_multiprocessing(terms, mode='term')
 
 Each term will be scraped in a different process. The result will be a list of dictionaries, one for each term.
 
-NOTE: with multiprocessing, only full logging is supported. Also, the number of processes is limited to the number of available cores on your machine. Finally, you could experience more rate limiting with multiprocessing (still investigating this).
+NOTE: only run the multiprocessing code in a `if __name__ == "__main__"` block to avoid errors. With multiprocessing, only full logging is supported. Also, the number of processes is limited to the number of available cores on your machine. Finally, you could experience more rate limiting with multiprocessing (still investigating this).
 
 ### Get profile information
 

@@ -11,6 +11,7 @@ import logging
 from logging.handlers import QueueHandler
 from multiprocessing import Pool, Queue, cpu_count
 from sys import stdout
+from tqdm import tqdm
 
 logging.basicConfig(
     level=logging.INFO,
@@ -112,34 +113,6 @@ class Nitter:
             return instance_list
         else:
             return None
-        
-    def _test_instance(self, args):
-        """
-        Test a Nitter instance
-
-        :param args: tuple of instance and endpoint to use
-        :return: instance if it works, None otherwise
-        """
-        instance, endpoint = args
-        self._initialize_session(instance)
-        req_session = requests.Session()
-        req_session.headers.update(
-            {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0"
-            }
-        )
-        try:
-            r = req_session.get(
-                instance + endpoint,
-                cookies={"hlsPlayback": "on", "infiniteScroll": ""},
-                timeout=10,
-            )
-            if r.ok:
-                soup = BeautifulSoup(r.text, "lxml")
-                if soup is not None and len(soup.find_all("div", class_="timeline-item")):
-                    return instance
-        except:
-            return None
 
     def _test_all_instances(self, endpoint, no_print=False):
         """
@@ -150,11 +123,28 @@ class Nitter:
         """
         if not no_print:
             print("High number of retries detected. Testing all instances...")
-        with Pool(cpu_count() - 1) as p:
-            working_instances = list(
-                p.map(self._test_instance, [(instance, endpoint) for instance in self.instances])
+        working_instances = []
+
+        for instance in tqdm(self.instances, desc="Testing instances"):
+            self._initialize_session(instance)
+            req_session = requests.Session()
+            req_session.headers.update(
+                {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0"
+                }
             )
-        working_instances = [instance for instance in working_instances if instance]
+            try:
+                r = req_session.get(
+                    instance + endpoint,
+                    cookies={"hlsPlayback": "on", "infiniteScroll": ""},
+                    timeout=10,
+                )
+                if r.ok:
+                    soup = BeautifulSoup(r.text, "lxml")
+                    if soup is not None and len(soup.find_all("div", class_="timeline-item")):
+                        working_instances.append(instance)
+            except:
+                pass
         if not no_print:
             print("New working instances:", ", ".join(working_instances))
         self.working_instances = working_instances
