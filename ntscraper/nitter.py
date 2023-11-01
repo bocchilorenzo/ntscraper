@@ -174,6 +174,9 @@ class Nitter:
             except:
                 if self.retry_count == max_retries // 2:
                     self._test_all_instances(endpoint)
+                    if len(self.working_instances) == 0:
+                        logging.warning("All instances are unreachable. Check your request and try again.")
+                        return None
                 self._initialize_session(
                     instance=self._get_new_instance(f"{self.instance} unreachable")
                 )
@@ -206,6 +209,9 @@ class Nitter:
             else:
                 if self.retry_count == max_retries // 2:
                     self._test_all_instances(endpoint)
+                    if len(self.working_instances) == 0:
+                        logging.warning("All instances are unreachable. Check your request and try again.")
+                        return None
                 else:
                     if "cursor" in endpoint:
                         if not self.session_reset:
@@ -410,9 +416,12 @@ class Nitter:
         :return: dictionary of user
         """
         if is_encrypted:
-            avatar = "https://pbs.twimg.com/" + b64decode(
-                tweet.find("img", class_="avatar")["src"].split("/")[-1].encode("utf-8")
-            ).decode("utf-8")
+            try:
+                avatar = "https://pbs.twimg.com/" + b64decode(
+                    tweet.find("img", class_="avatar")["src"].split("/")[-1].encode("utf-8")
+                ).decode("utf-8")
+            except:
+                avatar = ""
         else:
             avatar = "https://pbs.twimg.com" + unquote(
                 tweet.find("img", class_="avatar")["src"].split("/pic")[1]
