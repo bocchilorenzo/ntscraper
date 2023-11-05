@@ -27,12 +27,14 @@ First, initialize the library:
 ```python
 from ntscraper import Nitter
 
-scraper = Nitter(log_level=1)
+scraper = Nitter(log_level=1, skip_instance_check=False)
 ```
 The valid logging levels are:
 - None = no logs
 - 0 = only warning and error logs
 - 1 = previous + informational logs (default)
+
+The `skip_instance_check` parameter is used to skip the check of the Nitter instances. If you use your own instance or trust the instance you are relying on, then you can skip set it to 'True' to speed up the initialization, otherwise it's better to leave it to false.
 
 Then, choose the proper function for what you want to do from the following.
 
@@ -52,6 +54,7 @@ Parameters:
 - until: date to stop scraping at, formatted as YYYY-MM-DD. Default is None
 - max_retries: max retries to scrape a page. Default is 5
 - instance: Nitter instance to use. Default is None and will be chosen at random
+- no_empty_retries: True if the scraper should not retry when the page is empty. Default is False
 
 Returns a dictionary with tweets and threads for the term.
 
@@ -62,7 +65,7 @@ You can also scrape multiple terms at once using multiprocessing:
 ```python
 terms = ["github", "bezos", "musk"]
 
-results = scraper.get_tweets_multiprocessing(terms, mode='term')
+results = scraper.get_tweets(terms, mode='term')
 ```
 
 Each term will be scraped in a different process. The result will be a list of dictionaries, one for each term.

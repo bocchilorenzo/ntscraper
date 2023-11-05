@@ -27,15 +27,19 @@ root_logger.addHandler(log_handler)
 
 
 class Nitter:
-    def __init__(self, log_level=1):
+    def __init__(self, log_level=1, skip_initial_check=False):
         """
         Nitter scraper
 
-        :param log_level: logging level. Default 1
+        :param log_level: logging level
+        :param skip_initial_check: True if the initial check of all instances should be skipped
         """
         self.instances = self._get_instances()
         self.working_instances = []
-        self._test_all_instances("/x", no_print=True)
+        if skip_initial_check:
+            self.working_instances = self.instances
+        else:
+            self._test_all_instances("/x", no_print=True)
         if log_level == 0:
             log_level = logging.WARNING
         elif log_level == 1:
@@ -154,12 +158,13 @@ class Nitter:
         logging.warning(f"{message}. Trying {instance}")
         return instance
 
-    def _get_page(self, endpoint, max_retries=5):
+    def _get_page(self, endpoint, max_retries=5, no_empty_retries=False):
         """
         Download page from Nitter instance
 
         :param endpoint: endpoint to use
         :param max_retries: max number of retries, default 5
+        :param no_empty_retries: True if the scraper should not retry when the page is empty
         :return: page content, or None if max retries reached
         """
         keep_trying = True
@@ -200,10 +205,15 @@ class Nitter:
                         keep_trying = False
                         soup = None
                     else:
-                        self._initialize_session(
-                            self._get_new_instance(f"Empty profile on {self.instance}")
-                        )
-                        self.retry_count += 1
+                        message = f"Empty page on {self.instance}"
+                        if no_empty_retries:
+                            logging.warning(message)
+                            keep_trying = False
+                        else:
+                            self._initialize_session(
+                                self._get_new_instance(message)
+                            )
+                            self.retry_count += 1
                 else:
                     keep_trying = False
             else:
@@ -593,17 +603,18 @@ class Nitter:
 
         return to_return
 
-    def _search(self, term, mode, number, since, until, max_retries, instance):
+    def _search(self, term, mode, number, since, until, max_retries, instance, no_empty_retries):
         """
         Scrape the specified search terms from Nitter
 
         :param term: term to seach for
+        :param mode: search mode.
         :param number: number of tweets to scrape.
         :param since: date to start scraping from.
         :param until: date to stop scraping at.
         :param max_retries: max retries to scrape a page.
         :param instance: Nitter instance to use.
-        :param mode: search mode.
+        :param no_empty_retries: True if the scraper should not retry when the page is empty.
         :return: dictionary of tweets and threads for the term.
         """
         tweets = {"tweets": [], "threads": []}
@@ -637,7 +648,7 @@ class Nitter:
                     "Invalid 'until' date. Use the YYYY-MM-DD format and make sure the date is valid."
                 )
 
-        soup = self._get_page(endpoint, max_retries)
+        soup = self._get_page(endpoint, max_retries, no_empty_retries)
 
         if soup is None:
             return None
@@ -705,7 +716,7 @@ class Nitter:
                             )
                     else:
                         next_page = "/search" + show_more_buttons[-1].find("a")["href"]
-                    soup = self._get_page(next_page, max_retries)
+                    soup = self._get_page(next_page, max_retries, no_empty_retries)
                     if soup is None:
                         keep_scraping = False
                 else:
@@ -732,6 +743,7 @@ class Nitter:
         until=None,
         max_retries=5,
         instance=None,
+        no_empty_retries=False,
     ):
         """
         Scrape the specified term from Nitter
@@ -743,19 +755,20 @@ class Nitter:
         :param until: date to stop scraping at, formatted as YYYY-MM-DD. Default is None
         :param max_retries: max retries to scrape a page. Default is 5
         :param instance: Nitter instance to use. Default is None
+        :param no_empty_retries: True if the scraper should not retry when the page is empty. Default is False
         :return: dictionary or array with dictionaries (in case of multiple terms) of the tweets and threads for the provided terms
         """
         if type(terms) == str:
             term = sub(r"[^A-Za-z0-9_+]", "", terms)
 
             return self._search(
-                term, mode, number, since, until, max_retries, instance
+                term, mode, number, since, until, max_retries, instance, no_empty_retries
             )
         elif len(terms) == 1:
             term = sub(r"[^A-Za-z0-9_+]", "", terms[0])
 
             return self._search(
-                term, mode, number, since, until, max_retries, instance
+                term, mode, number, since, until, max_retries, instance, no_empty_retries
             )
         else:
             if len(terms) > cpu_count():
@@ -764,7 +777,7 @@ class Nitter:
                 )
 
             args = [
-                (sub(r"[^A-Za-z0-9_+]", "", term), mode, number, since, until, max_retries, instance)
+                (sub(r"[^A-Za-z0-9_+]", "", term), mode, number, since, until, max_retries, instance, no_empty_retries)
                 for term in terms
             ]
             with Pool(len(terms)) as p:
