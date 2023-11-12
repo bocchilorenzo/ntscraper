@@ -695,6 +695,7 @@ class Nitter:
                 not (since and until)
                 and not (since)
                 and len(tweets["tweets"]) + len(tweets["threads"]) >= number
+                or (since and len(tweets["tweets"]) + len(tweets["threads"]) >= number)
             ):
                 keep_scraping = False
             else:
