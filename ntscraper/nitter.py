@@ -759,13 +759,13 @@ class Nitter:
         :return: dictionary or array with dictionaries (in case of multiple terms) of the tweets and threads for the provided terms
         """
         if type(terms) == str:
-            term = sub(r"[^A-Za-z0-9_+]", "", terms)
+            term = sub(r"[^A-Za-z0-9_+-:]", "", terms)
 
             return self._search(
                 term, mode, number, since, until, max_retries, instance, no_empty_retries
             )
         elif len(terms) == 1:
-            term = sub(r"[^A-Za-z0-9_+]", "", terms[0])
+            term = sub(r"[^A-Za-z0-9_+-:]", "", terms[0])
 
             return self._search(
                 term, mode, number, since, until, max_retries, instance, no_empty_retries
@@ -777,7 +777,7 @@ class Nitter:
                 )
 
             args = [
-                (sub(r"[^A-Za-z0-9_+]", "", term), mode, number, since, until, max_retries, instance, no_empty_retries)
+                (sub(r"[^A-Za-z0-9_+-:]", "", term), mode, number, since, until, max_retries, instance, no_empty_retries)
                 for term in terms
             ]
             with Pool(len(terms)) as p:
@@ -795,7 +795,7 @@ class Nitter:
         :return: dictionary of the profile's information
         """
         self._initialize_session(instance)
-        username = sub(r"[^A-Za-z0-9_+]", "", username)
+        username = sub(r"[^A-Za-z0-9_+-:]", "", username)
         soup = self._get_page(f"/{username}", max_retries)
         if soup is None:
             return None
