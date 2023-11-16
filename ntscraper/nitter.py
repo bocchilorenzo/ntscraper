@@ -659,7 +659,8 @@ class Nitter:
         is_encrypted = self._is_instance_encrypted()
 
         already_scraped = set()
-
+        
+        number = float("inf") if number == -1 else number
         keep_scraping = True
         while keep_scraping:
             thread = []
@@ -698,7 +699,6 @@ class Nitter:
                 not (since and until)
                 and not (since)
                 and len(tweets["tweets"]) + len(tweets["threads"]) >= number
-                or (since and len(tweets["tweets"]) + len(tweets["threads"]) >= number)
             ):
                 keep_scraping = False
             else:
@@ -742,7 +742,7 @@ class Nitter:
         self,
         terms,
         mode="term",
-        number=5,
+        number=-1,
         since=None,
         until=None,
         max_retries=5,
@@ -754,7 +754,7 @@ class Nitter:
 
         :param terms: string/s to search for
         :param mode: search mode. Default is 'term', can also be 'hashtag' or 'user'
-        :param number: number of tweets to scrape. Default is 5. If 'since' is specified, this is bypassed.
+        :param number: number of tweets to scrape. Default is -1 (to not set a limit). If 'since' is specified, this is bypassed.
         :param since: date to start scraping from, formatted as YYYY-MM-DD. Default is None
         :param until: date to stop scraping at, formatted as YYYY-MM-DD. Default is None
         :param max_retries: max retries to scrape a page. Default is 5
