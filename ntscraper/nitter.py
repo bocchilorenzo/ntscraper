@@ -741,8 +741,6 @@ class Nitter:
                     # Extract tweets
                     if (
                         len(tweets["tweets"]) + len(tweets["threads"]) < number
-                        or (since and until)
-                        or since
                     ):
                         if self._get_tweet_link(tweet) not in already_scraped:
                             tweets["tweets"].append(to_append)
@@ -829,7 +827,7 @@ class Nitter:
 
         :param terms: string/s to search for
         :param mode: search mode. Default is 'term', can also be 'hashtag' or 'user'
-        :param number: number of tweets to scrape. Default is -1 (to not set a limit). If 'since' is specified, this is bypassed.
+        :param number: number of tweets to scrape. Default is -1 (to not set a limit).
         :param since: date to start scraping from, formatted as YYYY-MM-DD. Default is None
         :param until: date to stop scraping at, formatted as YYYY-MM-DD. Default is None
         :param near: near location of the tweets. Default is None (anywhere)

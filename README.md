@@ -49,7 +49,7 @@ bezos_tweets = scraper.get_tweets("JeffBezos", mode='user')
 Parameters:
 - term: search term
 - mode: modality to scrape the tweets. Default is 'term' which will look for tweets containing the search term. Other modes are 'hashtag' to search for a hashtag and 'user' to scrape tweets from a user profile
-- number: number of tweets to scrape. Default is -1 (no limit). If 'since' is specified, this is bypassed.
+- number: number of tweets to scrape. Default is -1 (no limit).
 - since: date to start scraping from, formatted as YYYY-MM-DD. Default is None
 - until: date to stop scraping at, formatted as YYYY-MM-DD. Default is None
 - near: location to search tweets from. Default is None (anywhere)
