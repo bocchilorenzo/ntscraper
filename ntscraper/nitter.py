@@ -25,6 +25,21 @@ log_handler = QueueHandler(log_queue)
 root_logger = logging.getLogger()
 root_logger.addHandler(log_handler)
 
+valid_filters = [
+    "nativeretweets",
+    "media",
+    "videos",
+    "news",
+    "verified",
+    "native_video",
+    "replies",
+    "links",
+    "images",
+    "safe",
+    "quote",
+    "pro_video",
+]
+
 
 class Nitter:
     def __init__(self, log_level=1, skip_initial_check=False):
@@ -146,7 +161,9 @@ class Nitter:
                 )
                 if r.ok:
                     soup = BeautifulSoup(r.text, "lxml")
-                    if soup is not None and len(soup.find_all("div", class_="timeline-item")):
+                    if soup is not None and len(
+                        soup.find_all("div", class_="timeline-item")
+                    ):
                         working_instances.append(instance)
             except:
                 pass
@@ -181,7 +198,9 @@ class Nitter:
                 if self.retry_count == max_retries // 2:
                     self._test_all_instances(endpoint)
                     if len(self.working_instances) == 0:
-                        logging.warning("All instances are unreachable. Check your request and try again.")
+                        logging.warning(
+                            "All instances are unreachable. Check your request and try again."
+                        )
                         return None
                 self._initialize_session(
                     instance=self._get_new_instance(f"{self.instance} unreachable")
@@ -211,9 +230,7 @@ class Nitter:
                             logging.warning(message)
                             keep_trying = False
                         else:
-                            self._initialize_session(
-                                self._get_new_instance(message)
-                            )
+                            self._initialize_session(self._get_new_instance(message))
                             self.retry_count += 1
                 else:
                     keep_trying = False
@@ -221,12 +238,16 @@ class Nitter:
                 if self.retry_count == max_retries // 2:
                     self._test_all_instances(endpoint)
                     if len(self.working_instances) == 0:
-                        logging.warning("All instances are unreachable. Check your request and try again.")
+                        logging.warning(
+                            "All instances are unreachable. Check your request and try again."
+                        )
                         return None
                 else:
                     if "cursor" in endpoint:
                         if not self.session_reset:
-                            logging.warning("Cooldown reached, trying again in 20 seconds")
+                            logging.warning(
+                                "Cooldown reached, trying again in 20 seconds"
+                            )
                             self.cooldown_count += 1
                             sleep(20)
                         if self.cooldown_count >= 5 and not self.session_reset:
@@ -235,7 +256,9 @@ class Nitter:
                             self.cooldown_count = 0
                         elif self.session_reset:
                             self._initialize_session(
-                                self._get_new_instance(f"Error fetching {self.instance}")
+                                self._get_new_instance(
+                                    f"Error fetching {self.instance}"
+                                )
                             )
                     else:
                         self.cooldown_count = 0
@@ -431,7 +454,9 @@ class Nitter:
         if is_encrypted:
             try:
                 avatar = "https://pbs.twimg.com/" + b64decode(
-                    tweet.find("img", class_="avatar")["src"].split("/")[-1].encode("utf-8")
+                    tweet.find("img", class_="avatar")["src"]
+                    .split("/")[-1]
+                    .encode("utf-8")
                 ).decode("utf-8")
             except:
                 avatar = ""
@@ -604,7 +629,22 @@ class Nitter:
 
         return to_return
 
-    def _search(self, term, mode, number, since, until, max_retries, instance, no_empty_retries):
+    def _search(
+        self,
+        term,
+        mode,
+        number,
+        since,
+        until,
+        near,
+        language,
+        to,
+        filters,
+        exclude,
+        max_retries,
+        instance,
+        no_empty_retries,
+    ):
         """
         Scrape the specified search terms from Nitter
 
@@ -613,6 +653,11 @@ class Nitter:
         :param number: number of tweets to scrape.
         :param since: date to start scraping from.
         :param until: date to stop scraping at.
+        :param near: location to search near.
+        :param language: language of the tweets.
+        :param to: user to which the tweets are directed.
+        :param filters: list of filters to apply.
+        :param exclude: list of filters to exclude.
         :param max_retries: max retries to scrape a page.
         :param instance: Nitter instance to use.
         :param no_empty_retries: True if the scraper should not retry when the page is empty.
@@ -633,6 +678,12 @@ class Nitter:
 
         self._initialize_session(instance)
 
+        if language:
+            endpoint += f"+lang%3A{language}"
+
+        if to:
+            endpoint += f"+to%3A{to}"
+
         if since:
             if self._check_date_validity(since):
                 endpoint += f"&since={since}"
@@ -648,7 +699,26 @@ class Nitter:
                 raise ValueError(
                     "Invalid 'until' date. Use the YYYY-MM-DD format and make sure the date is valid."
                 )
-            
+
+        if near:
+            endpoint += f"&near={near}"
+
+        if filters:
+            for f in filters:
+                if f not in valid_filters:
+                    raise ValueError(
+                        f"Invalid filter '{f}'. Valid filters are: {', '.join(valid_filters)}"
+                    )
+                endpoint += f"&f-{f}=on"
+
+        if exclude:
+            for e in exclude:
+                if e not in valid_filters:
+                    raise ValueError(
+                        f"Invalid exclusion filter '{e}'. Valid filters are: {', '.join(valid_filters)}"
+                    )
+                endpoint += f"&e-{e}=on"
+
         endpoint += "&scroll=false"
 
         soup = self._get_page(endpoint, max_retries, no_empty_retries)
@@ -659,7 +729,7 @@ class Nitter:
         is_encrypted = self._is_instance_encrypted()
 
         already_scraped = set()
-        
+
         number = float("inf") if number == -1 else number
         keep_scraping = True
         while keep_scraping:
@@ -745,6 +815,11 @@ class Nitter:
         number=-1,
         since=None,
         until=None,
+        near=None,
+        language=None,
+        to=None,
+        filters=None,
+        exclude=None,
         max_retries=5,
         instance=None,
         no_empty_retries=False,
@@ -757,6 +832,11 @@ class Nitter:
         :param number: number of tweets to scrape. Default is -1 (to not set a limit). If 'since' is specified, this is bypassed.
         :param since: date to start scraping from, formatted as YYYY-MM-DD. Default is None
         :param until: date to stop scraping at, formatted as YYYY-MM-DD. Default is None
+        :param near: near location of the tweets. Default is None (anywhere)
+        :param language: language of the tweets. Default is None (any language)
+        :param to: user to which the tweets are directed. Default is None (any user)
+        :param filters: list of filters to apply. Default is None
+        :param exclude: list of filters to exclude. Default is None
         :param max_retries: max retries to scrape a page. Default is 5
         :param instance: Nitter instance to use. Default is None
         :param no_empty_retries: True if the scraper should not retry when the page is empty. Default is False
@@ -766,13 +846,37 @@ class Nitter:
             term = sub(r"[^A-Za-z0-9_+-:]", " ", terms).replace("  ", " ").strip()
 
             return self._search(
-                term, mode, number, since, until, max_retries, instance, no_empty_retries
+                term,
+                mode,
+                number,
+                since,
+                until,
+                near,
+                language,
+                to,
+                filters,
+                exclude,
+                max_retries,
+                instance,
+                no_empty_retries,
             )
         elif len(terms) == 1:
             term = sub(r"[^A-Za-z0-9_+-:]", " ", terms[0]).replace("  ", " ").strip()
 
             return self._search(
-                term, mode, number, since, until, max_retries, instance, no_empty_retries
+                term,
+                mode,
+                number,
+                since,
+                until,
+                near,
+                language,
+                to,
+                filters,
+                exclude,
+                max_retries,
+                instance,
+                no_empty_retries,
             )
         else:
             if len(terms) > cpu_count():
@@ -781,12 +885,26 @@ class Nitter:
                 )
 
             args = [
-                (sub(r"[^A-Za-z0-9_+-:]", " ", term).replace("  ", " ").strip(), mode, number, since, until, max_retries, instance, no_empty_retries)
+                (
+                    sub(r"[^A-Za-z0-9_+-:]", " ", term).replace("  ", " ").strip(),
+                    mode,
+                    number,
+                    since,
+                    until,
+                    near,
+                    language,
+                    to,
+                    filters,
+                    exclude,
+                    max_retries,
+                    instance,
+                    no_empty_retries,
+                )
                 for term in terms
             ]
             with Pool(len(terms)) as p:
                 results = list(p.map(self._search_dispatch, args))
-            
+
             return results
 
     def get_profile_info(self, username, max_retries=5, instance=None):
@@ -845,7 +963,13 @@ class Nitter:
         else:
             profile_image = ""
 
-        icon_container = soup.find("div", class_="photo-rail-header").find("div", class_="icon-container") if soup.find("div", class_="photo-rail-header") else None
+        icon_container = (
+            soup.find("div", class_="photo-rail-header").find(
+                "div", class_="icon-container"
+            )
+            if soup.find("div", class_="photo-rail-header")
+            else None
+        )
 
         return {
             "image": profile_image,
@@ -894,10 +1018,7 @@ class Nitter:
                     .replace(",", "")
                 ),
                 "media": int(
-                    icon_container
-                    .text.strip()
-                    .replace(",", "")
-                    .split(" ")[0]
+                    icon_container.text.strip().replace(",", "").split(" ")[0]
                     if icon_container
                     else 0
                 ),
