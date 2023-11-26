@@ -50,6 +50,8 @@ class Nitter:
         :param skip_initial_check: True if the initial check of all instances should be skipped
         """
         self.instances = self._get_instances()
+        if self.instances is None:
+            raise ValueError("Could not fetch instances")
         self.working_instances = []
         if skip_initial_check:
             self.working_instances = self.instances
@@ -115,21 +117,12 @@ class Nitter:
 
         :return: list of Nitter instances, or None if lookup failed
         """
-        r = requests.get("https://github.com/zedeus/nitter/wiki/Instances")
+        r = requests.get("https://status.d420.de/api/v1/instances")
         instance_list = []
         if r.ok:
-            soup = BeautifulSoup(r.text, "lxml")
-            official = soup.find_all("tbody")[0]
-            instance_list.append(official.find("a")["href"])
-            table = soup.find_all("tbody")[2]
-            for instance in table.find_all("tr"):
-                columns = instance.find_all("td")
-                if (columns[1].text.strip() == "✅") and (
-                    columns[2].text.strip() == "✅"
-                ):
-                    url = instance.find("a")["href"]
-                    if not url.endswith(".onion"):
-                        instance_list.append(url)
+            for instance in r.json()["hosts"]:
+                if instance["healthy"]:
+                    instance_list.append(instance["url"])
             return instance_list
         else:
             return None
@@ -197,7 +190,7 @@ class Nitter:
             except:
                 if self.retry_count == max_retries // 2:
                     self._test_all_instances(endpoint)
-                    if len(self.working_instances) == 0:
+                    if not self.working_instances:
                         logging.warning(
                             "All instances are unreachable. Check your request and try again."
                         )
@@ -237,7 +230,7 @@ class Nitter:
             else:
                 if self.retry_count == max_retries // 2:
                     self._test_all_instances(endpoint)
-                    if len(self.working_instances) == 0:
+                    if not self.working_instances:
                         logging.warning(
                             "All instances are unreachable. Check your request and try again."
                         )
@@ -739,9 +732,7 @@ class Nitter:
                 if len(tweet["class"]) == 1:
                     to_append = self._extract_tweet(tweet, is_encrypted)
                     # Extract tweets
-                    if (
-                        len(tweets["tweets"]) + len(tweets["threads"]) < number
-                    ):
+                    if len(tweets["tweets"]) + len(tweets["threads"]) < number:
                         if self._get_tweet_link(tweet) not in already_scraped:
                             tweets["tweets"].append(to_append)
                             already_scraped.add(self._get_tweet_link(tweet))
