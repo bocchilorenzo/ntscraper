@@ -34,7 +34,7 @@ The valid logging levels are:
 - 0 = only warning and error logs
 - 1 = previous + informational logs (default)
 
-The `skip_instance_check` parameter is used to skip the check of the Nitter instances. If you use your own instance or trust the instance you are relying on, then you can skip set it to 'True' to speed up the initialization, otherwise it's better to leave it to false.
+The `skip_instance_check` parameter is used to skip the check of the Nitter instances altogether during the execution of the script. If you use your own instance or trust the instance you are relying on, then you can skip set it to 'True', otherwise it's better to leave it to false.
 
 Then, choose the proper function for what you want to do from the following.
 

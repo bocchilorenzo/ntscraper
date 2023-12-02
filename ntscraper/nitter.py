@@ -42,18 +42,21 @@ valid_filters = [
 
 
 class Nitter:
-    def __init__(self, log_level=1, skip_initial_check=False):
+    def __init__(
+        self, log_level=1, skip_instance_check=False
+    ):
         """
         Nitter scraper
 
         :param log_level: logging level
-        :param skip_initial_check: True if the initial check of all instances should be skipped
+        :param skip_instance_check: True if the health check of all instances and the instance change during execution should be skipped
         """
         self.instances = self._get_instances()
         if self.instances is None:
             raise ValueError("Could not fetch instances")
         self.working_instances = []
-        if skip_initial_check:
+        self.skip_instance_check = skip_instance_check
+        if skip_instance_check:
             self.working_instances = self.instances
         else:
             self._test_all_instances("/x", no_print=True)
@@ -78,6 +81,8 @@ class Nitter:
         Initialize the requests session
         """
         if instance is None:
+            if self.skip_instance_check:
+                raise ValueError("No instance specified and instance check skipped")
             self.instance = self.get_random_instance()
             logging.info(
                 f"No instance specified, using random instance {self.instance}"
@@ -189,15 +194,17 @@ class Nitter:
                 )
             except:
                 if self.retry_count == max_retries // 2:
-                    self._test_all_instances(endpoint)
-                    if not self.working_instances:
-                        logging.warning(
-                            "All instances are unreachable. Check your request and try again."
-                        )
-                        return None
-                self._initialize_session(
-                    instance=self._get_new_instance(f"{self.instance} unreachable")
-                )
+                    if not self.skip_instance_check:
+                        self._test_all_instances(endpoint)
+                        if not self.working_instances:
+                            logging.warning(
+                                "All instances are unreachable. Check your request and try again."
+                            )
+                            return None
+                if not self.skip_instance_check:
+                    self._initialize_session(
+                        instance=self._get_new_instance(f"{self.instance} unreachable")
+                    )
                 self.retry_count += 1
                 self.cooldown_count = 0
                 self.session_reset = True
@@ -223,18 +230,22 @@ class Nitter:
                             logging.warning(message)
                             keep_trying = False
                         else:
-                            self._initialize_session(self._get_new_instance(message))
+                            if not self.skip_instance_check:
+                                self._initialize_session(
+                                    self._get_new_instance(message)
+                                )
                             self.retry_count += 1
                 else:
                     keep_trying = False
             else:
                 if self.retry_count == max_retries // 2:
-                    self._test_all_instances(endpoint)
-                    if not self.working_instances:
-                        logging.warning(
-                            "All instances are unreachable. Check your request and try again."
-                        )
-                        return None
+                    if not self.skip_instance_check:
+                        self._test_all_instances(endpoint)
+                        if not self.working_instances:
+                            logging.warning(
+                                "All instances are unreachable. Check your request and try again."
+                            )
+                            return None
                 else:
                     if "cursor" in endpoint:
                         if not self.session_reset:
@@ -244,20 +255,25 @@ class Nitter:
                             self.cooldown_count += 1
                             sleep(20)
                         if self.cooldown_count >= 5 and not self.session_reset:
-                            self._initialize_session()
+                            if not self.skip_instance_check:
+                                self._initialize_session()
+                            else:
+                                self._initialize_session(self.instance)
                             self.session_reset = True
                             self.cooldown_count = 0
                         elif self.session_reset:
-                            self._initialize_session(
-                                self._get_new_instance(
-                                    f"Error fetching {self.instance}"
+                            if not self.skip_instance_check:
+                                self._initialize_session(
+                                    self._get_new_instance(
+                                        f"Error fetching {self.instance}"
+                                    )
                                 )
-                            )
                     else:
                         self.cooldown_count = 0
-                        self._initialize_session(
-                            self._get_new_instance(f"Error fetching {self.instance}")
-                        )
+                        if not self.skip_instance_check:
+                            self._initialize_session(
+                                self._get_new_instance(f"Error fetching {self.instance}")
+                            )
                     self.retry_count += 1
             sleep(2)
         current_retry_count = self.retry_count
