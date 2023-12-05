@@ -42,9 +42,7 @@ valid_filters = [
 
 
 class Nitter:
-    def __init__(
-        self, log_level=1, skip_instance_check=False
-    ):
+    def __init__(self, log_level=1, skip_instance_check=False):
         """
         Nitter scraper
 
@@ -272,7 +270,9 @@ class Nitter:
                         self.cooldown_count = 0
                         if not self.skip_instance_check:
                             self._initialize_session(
-                                self._get_new_instance(f"Error fetching {self.instance}")
+                                self._get_new_instance(
+                                    f"Error fetching {self.instance}"
+                                )
                             )
                     self.retry_count += 1
             sleep(2)
@@ -537,7 +537,9 @@ class Nitter:
         :param tweet: tweet to extract link from
         :return: link of tweet
         """
-        return "https://twitter.com" + tweet.find("a")["href"]
+        return (
+            "https://twitter.com" + tweet.find("a")["href"] if tweet.find("a") else ""
+        )
 
     def _get_external_link(self, tweet):
         """
