@@ -90,7 +90,8 @@ class Nitter:
         self.r = requests.Session()
         self.r.headers.update(
             {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0",
+                "Host": self.instance.split("://")[1],
             }
         )
 
@@ -146,7 +147,7 @@ class Nitter:
             req_session = requests.Session()
             req_session.headers.update(
                 {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0"
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0"
                 }
             )
             try:
@@ -171,14 +172,38 @@ class Nitter:
         instance = self.get_random_instance()
         logging.warning(f"{message}. Trying {instance}")
         return instance
+    
+    def _check_error_page(self, soup):
+        """
+        Check if the page contains an error. If so, print the error and return None
 
-    def _get_page(self, endpoint, max_retries=5, no_empty_retries=False):
+        :param soup: page to check
+        :return: None if error is found, soup otherwise
+        """
+        if not soup.find(
+            lambda tag: tag.name == "div"
+            and (
+                tag.get("class") == ["timeline-item"]
+                or tag.get("class") == ["timeline-item", "thread"]
+            )
+        ):
+            if soup.find("div", class_="error-panel"):
+                message = (
+                    f"Fetching error: "
+                    + soup.find("div", class_="error-panel").find("span").text.strip()
+                )
+            else:
+                message = f"Empty page on {self.instance}"
+            logging.warning(message)
+            soup = None
+        return soup
+
+    def _get_page(self, endpoint, max_retries=5):
         """
         Download page from Nitter instance
 
         :param endpoint: endpoint to use
         :param max_retries: max number of retries, default 5
-        :param no_empty_retries: True if the scraper should not retry when the page is empty
         :return: page content, or None if max retries reached
         """
         keep_trying = True
@@ -208,79 +233,64 @@ class Nitter:
                 self.session_reset = True
                 sleep(1)
                 continue
+            soup = BeautifulSoup(r.text, "lxml")
             if r.ok:
                 self.session_reset = False
-                soup = BeautifulSoup(r.text, "lxml")
-                if not soup.find(
-                    lambda tag: tag.name == "div"
-                    and (
-                        tag.get("class") == ["timeline-item"]
-                        or tag.get("class") == ["timeline-item", "thread"]
-                    )
-                ):
-                    bottom_page = soup.find_all("div", class_="show-more")
-                    if bottom_page and bottom_page[-1].find("a").text == "Load newest":
-                        keep_trying = False
-                        soup = None
-                    else:
-                        message = f"Empty page on {self.instance}"
-                        if no_empty_retries:
-                            logging.warning(message)
-                            keep_trying = False
-                        else:
-                            if not self.skip_instance_check:
-                                self._initialize_session(
-                                    self._get_new_instance(message)
-                                )
-                            self.retry_count += 1
-                else:
-                    keep_trying = False
+                soup = self._check_error_page(soup)
+                keep_trying = False
             else:
-                if self.retry_count == max_retries // 2:
-                    if not self.skip_instance_check:
-                        self._test_all_instances(endpoint)
-                        if not self.working_instances:
-                            logging.warning(
-                                "All instances are unreachable. Check your request and try again."
-                            )
-                            return None
+                soup = self._check_error_page(soup)
+                if soup is None:
+                    keep_trying = False
                 else:
-                    if "cursor" in endpoint:
-                        if not self.session_reset:
-                            logging.warning(
-                                "Cooldown reached, trying again in 20 seconds"
-                            )
-                            self.cooldown_count += 1
-                            sleep(20)
-                        if self.cooldown_count >= 5 and not self.session_reset:
-                            if not self.skip_instance_check:
-                                self._initialize_session()
-                            else:
-                                self._initialize_session(self.instance)
-                            self.session_reset = True
+                    if self.retry_count == max_retries // 2:
+                        if not self.skip_instance_check:
+                            self._test_all_instances(endpoint)
+                            if not self.working_instances:
+                                logging.warning(
+                                    "All instances are unreachable. Check your request and try again."
+                                )
+                                soup = None
+                                keep_trying = False
+                        else:
+                            self.retry_count += 1
+                    else:
+                        if "cursor" in endpoint:
+                            if not self.session_reset:
+                                logging.warning(
+                                    "Cooldown reached, trying again in 20 seconds"
+                                )
+                                self.cooldown_count += 1
+                                sleep(20)
+                            if self.cooldown_count >= 5 and not self.session_reset:
+                                if not self.skip_instance_check:
+                                    self._initialize_session()
+                                else:
+                                    self._initialize_session(self.instance)
+                                self.session_reset = True
+                                self.cooldown_count = 0
+                            elif self.session_reset:
+                                if not self.skip_instance_check:
+                                    self._initialize_session(
+                                        self._get_new_instance(
+                                            f"Error fetching {self.instance}"
+                                        )
+                                    )
+                        else:
                             self.cooldown_count = 0
-                        elif self.session_reset:
                             if not self.skip_instance_check:
                                 self._initialize_session(
                                     self._get_new_instance(
                                         f"Error fetching {self.instance}"
                                     )
                                 )
-                    else:
-                        self.cooldown_count = 0
-                        if not self.skip_instance_check:
-                            self._initialize_session(
-                                self._get_new_instance(
-                                    f"Error fetching {self.instance}"
-                                )
-                            )
-                    self.retry_count += 1
+                        self.retry_count += 1
             sleep(2)
-        current_retry_count = self.retry_count
-        self.retry_count = 0
-        if current_retry_count >= max_retries:
+
+        if self.retry_count >= max_retries:
             logging.warning("Max retries reached. Check your request and try again.")
-            return None
+            soup = None
+        self.retry_count = 0
 
         return soup
 
@@ -654,7 +664,6 @@ class Nitter:
         exclude,
         max_retries,
         instance,
-        no_empty_retries,
     ):
         """
         Scrape the specified search terms from Nitter
@@ -671,7 +680,6 @@ class Nitter:
         :param exclude: list of filters to exclude.
         :param max_retries: max retries to scrape a page.
         :param instance: Nitter instance to use.
-        :param no_empty_retries: True if the scraper should not retry when the page is empty.
         :return: dictionary of tweets and threads for the term.
         """
         tweets = {"tweets": [], "threads": []}
@@ -730,12 +738,16 @@ class Nitter:
                     )
                 endpoint += f"&e-{e}=on"
 
-        endpoint += "&scroll=false"
+        if mode != "user":
+            if "?" in endpoint:
+                endpoint += "&scroll=false"
+            else:
+                endpoint += "?scroll=false"
 
-        soup = self._get_page(endpoint, max_retries, no_empty_retries)
+        soup = self._get_page(endpoint, max_retries)
 
         if soup is None:
-            return None
+            return tweets
 
         is_encrypted = self._is_instance_encrypted()
 
@@ -797,7 +809,7 @@ class Nitter:
                             )
                     else:
                         next_page = "/search" + show_more_buttons[-1].find("a")["href"]
-                    soup = self._get_page(next_page, max_retries, no_empty_retries)
+                    soup = self._get_page(next_page, max_retries)
                     if soup is None:
                         keep_scraping = False
                 else:
@@ -829,7 +841,6 @@ class Nitter:
         exclude=None,
         max_retries=5,
         instance=None,
-        no_empty_retries=False,
     ):
         """
         Scrape the specified term from Nitter
@@ -846,7 +857,6 @@ class Nitter:
         :param exclude: list of filters to exclude. Default is None
         :param max_retries: max retries to scrape a page. Default is 5
         :param instance: Nitter instance to use. Default is None
-        :param no_empty_retries: True if the scraper should not retry when the page is empty. Default is False
         :return: dictionary or array with dictionaries (in case of multiple terms) of the tweets and threads for the provided terms
         """
         if type(terms) == str:
@@ -865,7 +875,6 @@ class Nitter:
                 exclude,
                 max_retries,
                 instance,
-                no_empty_retries,
             )
         elif len(terms) == 1:
             term = sub(r"[^A-Za-z0-9_+-:]", " ", terms[0]).replace("  ", " ").strip()
@@ -883,7 +892,6 @@ class Nitter:
                 exclude,
                 max_retries,
                 instance,
-                no_empty_retries,
             )
         else:
             if len(terms) > cpu_count():
@@ -905,7 +913,6 @@ class Nitter:
                     exclude,
                     max_retries,
                     instance,
-                    no_empty_retries,
                 )
                 for term in terms
             ]

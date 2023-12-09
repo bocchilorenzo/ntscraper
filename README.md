@@ -59,7 +59,6 @@ Parameters:
 - exclude: list of filters to exclude from the search. Default is None. Valid filters are the same as above
 - max_retries: max retries to scrape a page. Default is 5
 - instance: Nitter instance to use. Default is None and will be chosen at random
-- no_empty_retries: True if the scraper should not retry when the page is empty. Default is False
 
 Returns a dictionary with tweets and threads for the term.
 
