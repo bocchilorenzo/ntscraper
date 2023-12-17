@@ -200,7 +200,10 @@ class Nitter:
                     + soup.find("div", class_="error-panel").find("span").text.strip()
                 )
             else:
-                message = f"Empty page on {self.instance}"
+                if soup.find("div", class_="timeline-header timeline-protected"):
+                    message = "Account is protected"
+                else:
+                    message = f"Empty page on {self.instance}"
             logging.warning(message)
             soup = None
         return soup
