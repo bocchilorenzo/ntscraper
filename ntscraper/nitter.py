@@ -872,7 +872,7 @@ class Nitter:
         :return: dictionary or array with dictionaries (in case of multiple terms) of the tweets and threads for the provided terms
         """
         if type(terms) == str:
-            term = sub(r"[^A-Za-z0-9_+-:]", " ", terms).replace("  ", " ").strip()
+            term = terms.strip()
 
             return self._search(
                 term,
@@ -889,7 +889,7 @@ class Nitter:
                 instance,
             )
         elif len(terms) == 1:
-            term = sub(r"[^A-Za-z0-9_+-:]", " ", terms[0]).replace("  ", " ").strip()
+            term = terms[0].strip()
 
             return self._search(
                 term,
@@ -913,7 +913,7 @@ class Nitter:
 
             args = [
                 (
-                    sub(r"[^A-Za-z0-9_+-:]", " ", term).replace("  ", " ").strip(),
+                    term.strip(),
                     mode,
                     number,
                     since,
