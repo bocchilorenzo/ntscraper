@@ -179,7 +179,7 @@ class Nitter:
         instance = self.get_random_instance()
         logging.warning(f"{message}. Trying {instance}")
         return instance
-    
+
     def _check_error_page(self, soup):
         """
         Check if the page contains an error. If so, print the error and return None
@@ -576,6 +576,23 @@ class Nitter:
             else ""
         )
 
+    def _get_replied_to(self, tweet):
+        """
+        Extract the users a tweet is replying to. If the tweet is not a reply,
+        return an empty list.
+
+        :param tweet: tweet to extract replies from
+        :return: list of users the tweet is replying to
+        """
+        return (
+            [
+                user.text.strip()
+                for user in tweet.find("div", class_="replying-to").find_all("a")
+            ]
+            if tweet.find("div", class_="replying-to")
+            else []
+        )
+
     def _extract_tweet(self, tweet, is_encrypted):
         """
         Extract content from a tweet
@@ -618,6 +635,7 @@ class Nitter:
             "date": self._get_tweet_date(tweet),
             "is-retweet": tweet.find("div", class_="retweet-header") is not None,
             "external-link": self._get_external_link(tweet),
+            "replying_to": self._get_replied_to(tweet),
             "quoted-post": {
                 "link": self._get_tweet_link(quoted_tweet) if not deleted else "",
                 "text": self._get_tweet_text(quoted_tweet) if not deleted else "",
