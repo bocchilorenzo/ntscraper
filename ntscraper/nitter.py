@@ -926,7 +926,7 @@ class Nitter:
         else:
             if len(terms) > cpu_count():
                 raise ValueError(
-                    f"Too many terms. Maximum number of terms is {cpu_count()}"
+                    f"Too many terms. You can search at most {cpu_count()} terms."
                 )
 
             args = [
@@ -951,9 +951,9 @@ class Nitter:
 
             return results
 
-    def get_profile_info(self, username, max_retries=5, instance=None):
+    def _profile_info(self, username, max_retries, instance):
         """
-        Get profile information for a user
+        Gets the profile information for a user.
 
         :param username: username of the page to scrape
         :param max_retries: max retries to scrape a page. Default is 5
@@ -1068,3 +1068,43 @@ class Nitter:
                 ),
             },
         }
+
+    def _search_profile_dispatch(self, args):
+        return self._profile_info(*args)
+
+    def get_profile_info(self, username, max_retries=5, instance=None):
+        """
+        Get profile information for a user
+
+        :param username: username/s of the page to scrape
+        :param max_retries: max retries to scrape a page. Default is 5
+        :param instance: Nitter instance to use. Default is None
+        :return: dictionary of the profile's information
+        """
+
+        if type(username) == str:
+            username = username.strip()
+
+            return self._profile_info(username, max_retries, instance)
+        elif len(username) == 1:
+            username = username[0].strip()
+
+            return self._profile_info(username, max_retries, instance)
+        else:
+            if len(username) > cpu_count():
+                raise ValueError(
+                    f"Too many usernames. You can use at most {cpu_count()} usernames."
+                )
+
+            args = [
+                (
+                    user.strip(),
+                    max_retries,
+                    instance,
+                )
+                for user in username
+            ]
+            with Pool(len(username)) as p:
+                results = list(p.map(self._search_profile_dispatch, args))
+
+            return results

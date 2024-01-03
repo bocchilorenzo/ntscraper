@@ -74,7 +74,9 @@ results = scraper.get_tweets(terms, mode='term')
 
 Each term will be scraped in a different process. The result will be a list of dictionaries, one for each term.
 
-NOTE: only run the multiprocessing code in a `if __name__ == "__main__"` block to avoid errors. With multiprocessing, only full logging is supported. Also, the number of processes is limited to the number of available cores on your machine. Finally, you could experience more rate limiting with multiprocessing (still investigating this).
+The multiprocessing code needs to run in a `if __name__ == "__main__"` block to avoid errors. With multiprocessing, only full logging is supported. Also, the number of processes is limited to the number of available cores on your machine.
+
+NOTE: using multiprocessing on public instances is highly discouraged since it puts too much load on the servers and could potentially also get you rate limited. Please only use it on your local instance.
 
 ### Get profile information
 
@@ -88,6 +90,22 @@ Parameters:
 - instance: Nitter instance to use. Default is None
 
 Returns a dictionary of the profile's information.
+
+#### Multiprocessing
+
+As for the term scraping, you can also get info from multiple profiles at once using multiprocessing:
+
+```python
+usernames = ["x", "github"]
+
+results = scraper.get_profile_info(usernames)
+```
+
+Each user will be scraped in a different process. The result will be a list of dictionaries, one for each user.
+
+The multiprocessing code needs to run in a `if __name__ == "__main__"` block to avoid errors. With multiprocessing, only full logging is supported. Also, the number of processes is limited to the number of available cores on your machine.
+
+NOTE: using multiprocessing on public instances is highly discouraged since it puts too much load on the servers and could potentially also get you rate limited. Please only use it on your local instance.
 
 ### Get random Nitter instance
 
