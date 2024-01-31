@@ -634,8 +634,9 @@ class Nitter:
             "user": self._get_user(tweet, is_encrypted),
             "date": self._get_tweet_date(tweet),
             "is-retweet": tweet.find("div", class_="retweet-header") is not None,
+            "is-pinned": tweet.find("div", class_="pinned") is not None,
             "external-link": self._get_external_link(tweet),
-            "replying_to": self._get_replied_to(tweet),
+            "replying-to": self._get_replied_to(tweet),
             "quoted-post": {
                 "link": self._get_tweet_link(quoted_tweet) if not deleted else "",
                 "text": self._get_tweet_text(quoted_tweet) if not deleted else "",
