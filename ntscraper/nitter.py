@@ -117,24 +117,13 @@ class Nitter:
 
     def _get_instances(self):
         """
-        Fetch the list of clear web Nitter instances from the wiki
+        Fetch the list of clear web Nitter instances.
 
         :return: list of Nitter instances, or None if lookup failed
         """
-        r = requests.get("https://github.com/zedeus/nitter/wiki/Instances")
-        instance_list = []
+        r = requests.get("https://raw.githubusercontent.com/libredirect/instances/main/data.json")
         if r.ok:
-            soup = BeautifulSoup(r.text, "lxml")
-            official = soup.find_all("tbody")[0]
-            instance_list.append(official.find("a")["href"])
-            table = soup.find_all("tbody")[2]
-            for instance in table.find_all("tr"):
-                columns = instance.find_all("td")
-                if (columns[1].text.strip() == "✅") and (
-                    columns[2].text.strip() == "✅"
-                ):
-                    instance_list.append(instance.find("a")["href"])
-            return instance_list
+            return r.json()["nitter"]["clearnet"]
         else:
             return None
 

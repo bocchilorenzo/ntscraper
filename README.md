@@ -1,5 +1,11 @@
 # Unofficial Nitter scraper
 
+## Note
+
+Twitter has recently made some changes which affected every third party Twitter client, including Nitter. As a result, most Nitter instances have shut down or will shut down shortly. Even local instances are affected by this, so you may not be able to scrape as many tweets as expected, if at all.
+
+## The scraper
+
 This is a simple library to scrape Nitter instances for tweets. It can:
 
 - search and scrape tweets with a certain term
