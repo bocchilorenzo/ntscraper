@@ -42,14 +42,23 @@ valid_filters = [
 
 
 class Nitter:
-    def __init__(self, log_level=1, skip_instance_check=False):
+    def __init__(self, instances=None, log_level=1, skip_instance_check=False):
         """
         Nitter scraper
-
+        :param instances: accepts a list of instances or a single instance in this format: "https://{host}:{port}", e.g. "http://localhost:8080
         :param log_level: logging level
         :param skip_instance_check: True if the health check of all instances and the instance change during execution should be skipped
         """
-        self.instances = self._get_instances()
+        if instances:
+            # check instances type is list or str
+            if isinstance(instances, list):
+                self.instances = instances
+            elif isinstance(instances, str):
+                self.instances = [instances]
+            else:
+                raise ValueError("Instances type not supported, only list and str are supported")
+        else:
+            self.instances = self._get_instances()
         if self.instances is None:
             raise ValueError("Could not fetch instances")
         self.working_instances = []
