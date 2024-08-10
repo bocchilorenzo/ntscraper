@@ -1069,41 +1069,73 @@ class Nitter:
         }
 
     def _search_profile_dispatch(self, args):
-        return self._profile_info(*args)
+        return self.get_profile_info(*args)
 
-    def get_profile_info(self, username, max_retries=5, instance=None):
+    def get_profile_info(self, username, max_retries=5, instance=None, mode='simple'):
         """
-        Get profile information for a user
+        Get profile information for a user or a list of users
 
-        :param username: username/s of the page to scrape
+        :param username: username/s of the page to scrape (str or list of str)
         :param max_retries: max retries to scrape a page. Default is 5
         :param instance: Nitter instance to use. Default is None
-        :return: dictionary of the profile's information
+        :param mode: Mode of fetching profile info. 'simple' for basic info, 'detail' for detailed info including following and followers lists. Default is 'simple'.
+        :return: dictionary of the profile's information or list of dictionaries if username is a list. The dictionary contains the following keys:
+            - image: URL of the profile image
+            - name: Full name of the user
+            - username: Username of the user
+            - id: Profile ID
+            - bio: Bio of the user
+            - location: Location of the user
+            - website: Website URL of the user
+            - joined: Date when the user joined
+            - stats: Dictionary containing the following keys:
+                - tweets: Number of tweets
+                - following: Number of users the profile is following
+                - followers: Number of followers
+                - likes: Number of likes
+                - media: Number of media posts
+            - following_list: List of usernames the profile is following (only in 'detail' mode)
+            - followers_list: List of usernames following the profile (only in 'detail' mode)
         """
 
-        if type(username) == str:
-            username = username.strip()
+        def _get_follow_list(endpoint):
+            follow_list = []
+            cursor = None
+            while True:
+                url = f"{endpoint}?cursor={cursor}" if cursor else endpoint
+                soup = self._get_page(url, max_retries)
+                if not soup:
+                    break
+                users = [user.text.strip() for user in soup.find_all("a", class_="username")]
+                if not users:
+                    break
+                follow_list.extend(users)
+                load_more = soup.find("div", class_="show-more")
+                if load_more and load_more.find("a"):
+                    cursor = load_more.find("a")["href"].split("cursor=")[-1]
+                else:
+                    break
+            return follow_list
 
-            return self._profile_info(username, max_retries, instance)
+        if isinstance(username, str):
+            username = username.strip()
+            profile_info = self._profile_info(username, max_retries, instance)
+            if profile_info and mode == 'detail':
+                profile_info["following_list"] = _get_follow_list(f"/{username}/following")
+                profile_info["followers_list"] = _get_follow_list(f"/{username}/followers")
+            return profile_info
         elif len(username) == 1:
             username = username[0].strip()
-
-            return self._profile_info(username, max_retries, instance)
+            profile_info = self._profile_info(username, max_retries, instance)
+            if profile_info and mode == 'detail':
+                profile_info["following_list"] = _get_follow_list(f"/{username}/following")
+                profile_info["followers_list"] = _get_follow_list(f"/{username}/followers")
+            return profile_info
         else:
             if len(username) > cpu_count():
-                raise ValueError(
-                    f"Too many usernames. You can use at most {cpu_count()} usernames."
-                )
+                raise ValueError(f"Too many usernames. You can use at most {cpu_count()} usernames.")
 
-            args = [
-                (
-                    user.strip(),
-                    max_retries,
-                    instance,
-                )
-                for user in username
-            ]
+            args = [(user.strip(), max_retries, instance, mode) for user in username]
             with Pool(len(username)) as p:
                 results = list(p.map(self._search_profile_dispatch, args))
-
             return results
