@@ -61,6 +61,7 @@ Parameters:
 - near: location to search tweets from. Default is None (anywhere)
 - language: language of the tweets to search. Default is None (any language). The language must be specified as a 2-letter ISO 639-1 code (e.g. 'en' for English, 'es' for Spanish, 'fr' for French ...)
 - to: user to which the tweets are directed. Default is None (any user). For example, if you want to search for tweets directed to @github, you would set this parameter to 'github'
+- replies: whether to include replies in the search. If 'filters' or 'exclude' are set, this is overridden. Default is False
 - filters: list of filters to apply to the search. Default is None. Valid filters are: 'nativeretweets', 'media', 'videos', 'news', 'verified', 'native_video', 'replies', 'links', 'images', 'safe', 'quote', 'pro_video'
 - exclude: list of filters to exclude from the search. Default is None. Valid filters are the same as above
 - max_retries: max retries to scrape a page. Default is 5

@@ -689,6 +689,7 @@ class Nitter:
         near,
         language,
         to,
+        replies,
         filters,
         exclude,
         max_retries,
@@ -705,6 +706,7 @@ class Nitter:
         :param near: location to search near.
         :param language: language of the tweets.
         :param to: user to which the tweets are directed.
+        :param replies: True if both tweets and replies are needed.
         :param filters: list of filters to apply.
         :param exclude: list of filters to exclude.
         :param max_retries: max retries to scrape a page.
@@ -717,10 +719,12 @@ class Nitter:
         elif mode == "term":
             endpoint = "/search?f=tweets&q=" + term
         elif mode == "user":
-            if since or until:
+            if since or until or filters or exclude or near:
                 endpoint = f"/{term}/search?f=tweets&q="
             else:
                 endpoint = f"/{term}"
+                if replies and not filters:
+                    endpoint += "/with_replies"
         else:
             raise ValueError("Invalid mode. Use 'term', 'hashtag', or 'user'.")
 
@@ -866,6 +870,7 @@ class Nitter:
         near=None,
         language=None,
         to=None,
+        replies=False,
         filters=None,
         exclude=None,
         max_retries=5,
@@ -882,6 +887,7 @@ class Nitter:
         :param near: near location of the tweets. Default is None (anywhere)
         :param language: language of the tweets. Default is None (any language)
         :param to: user to which the tweets are directed. Default is None (any user)
+        :param replies: True if both tweets and replies are needed. If 'filters' or 'exclude' are set, this option will be overridden. Default is False
         :param filters: list of filters to apply. Default is None
         :param exclude: list of filters to exclude. Default is None
         :param max_retries: max retries to scrape a page. Default is 5
@@ -900,6 +906,7 @@ class Nitter:
                 near,
                 language,
                 to,
+                replies,
                 filters,
                 exclude,
                 max_retries,
@@ -917,6 +924,7 @@ class Nitter:
                 near,
                 language,
                 to,
+                replies,
                 filters,
                 exclude,
                 max_retries,
@@ -938,6 +946,7 @@ class Nitter:
                     near,
                     language,
                     to,
+                    replies,
                     filters,
                     exclude,
                     max_retries,
