@@ -1078,7 +1078,7 @@ class Nitter:
         :param username: username/s of the page to scrape (str or list of str)
         :param max_retries: max retries to scrape a page. Default is 5
         :param instance: Nitter instance to use. Default is None
-        :param mode: Mode of fetching profile info. 'simple' for basic info, 'detail' for detailed info including following and followers lists. Default is 'simple'.
+        :param mode: Mode of fetching profile info. 'simple' for basic info, 'detail' for detailed info including following and followers lists. Default is 'simple'
         :return: dictionary of the profile's information or list of dictionaries if username is a list. The dictionary contains the following keys:
             - image: URL of the profile image
             - name: Full name of the user
