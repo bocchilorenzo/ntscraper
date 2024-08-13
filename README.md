@@ -95,6 +95,7 @@ Parameters:
 - username: username of the page to scrape
 - max_retries: max retries to scrape a page. Default is 5
 - instance: Nitter instance to use. Default is None
+- mode: mode of fetching profile info. 'simple' for basic info, 'detail' for detailed info including following and followers lists. Default is 'simple'
 
 Returns a dictionary of the profile's information.
 
