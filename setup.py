@@ -34,5 +34,5 @@ setup(
     ],
     packages=["ntscraper"],
     include_package_data=True,
-    install_requires=["requests", "beautifulsoup4", "lxml"],
+    install_requires=["requests>=2.28", "beautifulsoup4>=4.11", "lxml>=4.9", "tqdm>=4.66"],
 )
