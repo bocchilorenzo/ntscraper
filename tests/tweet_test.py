@@ -14,9 +14,9 @@ class TestGetTweetById(unittest.TestCase):
         self.assertEqual(tweet['text'], "since it’s friday, let’s have some fun!  comment with a @grok generated pic"
                                         " that describes your entire personality 👹")
         self.assertEqual(tweet['date'], "Aug 16, 2024 · 6:03 PM UTC", "Date should match the expected date")
-        self.assertGreaterEqual(tweet['stats']['likes'], 3471, "Likes count should be greater than or equal to 297")
-        self.assertGreaterEqual(tweet['stats']['retweets'], 303, "Retweets count should be greater than or equal to 82")
-        self.assertGreaterEqual(tweet['stats']['comments'], 2000, "Comments count should be greater than or equal to 18"
+        self.assertGreaterEqual(tweet['stats']['likes'], 3471, "Likes count should be greater than or equal to 3471")
+        self.assertGreaterEqual(tweet['stats']['retweets'], 303, "Retweets count should be greater than or equal to 303")
+        self.assertGreaterEqual(tweet['stats']['comments'], 2000, "Comments count should be greater than or equal to 2000"
                                 )
 
 
