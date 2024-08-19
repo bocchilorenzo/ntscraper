@@ -10,6 +10,14 @@ class TestSearch(unittest.TestCase):
         tweets = nitter.get_tweets("Twitter", 'term')
         self.assertGreater(len(tweets['tweets']), 0)
 
+    def test_scrape_user(self):
+        """
+        Test scraping a user
+        """
+        nitter = Nitter()
+        tweets = nitter.get_tweets("X", mode='user', number=10)
+        self.assertGreater(len(tweets['tweets']), 0)
+
     def scrape_hashtag(self):
         """
         Test scraping a hashtag

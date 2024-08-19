@@ -860,6 +860,38 @@ class Nitter:
         """
         return random.choice(self.working_instances)
 
+    def get_tweet_by_id(self, username, tweet_id, instance=None, max_retries=5):
+        """
+        Fetch a tweet by its ID.
+
+        :param username: The username of the tweet.
+        :param tweet_id: The ID of the tweet to fetch.
+        :param instance: The specific Nitter instance to use.
+        :param max_retries: Max retries to scrape a page. Default is 5.
+        :return: Dictionary of the tweet content.
+        """
+        if instance:
+            self._initialize_session(instance)
+        else:
+            if not self.working_instances:
+                raise ValueError("No working instances available.")
+            self.instance = self.get_random_instance()
+
+        endpoint = f"/{username}/status/{tweet_id}"
+        soup = self._get_page(endpoint, max_retries)
+
+        if soup is None:
+            return None
+
+        is_encrypted = self._is_instance_encrypted()
+
+        tweet = soup.find("div", class_="timeline-item")
+        if tweet:
+            return self._extract_tweet(tweet, is_encrypted)
+        else:
+            logging.warning(f"Tweet with ID {tweet_id} not found.")
+            return None
+
     def get_tweets(
         self,
         terms,
