@@ -242,8 +242,6 @@ class Nitter:
         """
         keep_trying = True
         soup = None
-
-        # Shuffle proxies at the start of each retry loop to randomize the first proxy used
         if self.proxies:
             random.shuffle(self.proxies)
 
@@ -251,7 +249,7 @@ class Nitter:
             try:
                 proxy_ip = self.retry_count % len(self.proxies) if self.proxies else None
                 proxy = self.proxies[proxy_ip] if self.proxies else None
-                logging.info(f"Attempt at {endpoint} numer {self.retry_count + 1} using proxy: {proxy}")
+                logging.info(f"Attempt at {endpoint} numer {self.retry_count + 1} using random proxy: {proxy}")
                 self._initialize_session(self.instance, proxy)
 
                 r = self.r.get(
