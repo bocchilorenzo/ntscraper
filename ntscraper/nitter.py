@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import requests
 from bs4 import BeautifulSoup
 import random
@@ -42,15 +44,8 @@ valid_filters = [
 
 
 class Nitter:
-    def __init__(self, instances=None, log_level=1, skip_instance_check=False):
-        """
-        Nitter scraper
-        :param instances: accepts a list of instances or a single instance in this format: "https://{host}:{port}", e.g. "http://localhost:8080
-        :param log_level: logging level
-        :param skip_instance_check: True if the health check of all instances and the instance change during execution should be skipped
-        """
+    def __init__(self, instances=None, log_level=1, skip_instance_check=False, proxies=None):
         if instances:
-            # check instances type is list or str
             if isinstance(instances, list):
                 self.instances = instances
             elif isinstance(instances, str):
@@ -82,20 +77,20 @@ class Nitter:
         self.session_reset = False
         self.instance = ""
         self.r = None
+        self.proxies = proxies if proxies else []
 
-    def _initialize_session(self, instance):
+    def _initialize_session(self, instance, proxy=None):
         """
-        Initialize the requests session
+        Initialize the requests session with optional proxy
         """
         if instance is None:
             if self.skip_instance_check:
                 raise ValueError("No instance specified and instance check skipped")
             self.instance = self.get_random_instance()
-            logging.info(
-                f"No instance specified, using random instance {self.instance}"
-            )
+            logging.info(f"No instance specified, using random instance {self.instance}")
         else:
             self.instance = instance
+
         self.r = requests.Session()
         self.r.headers.update(
             {
@@ -103,6 +98,9 @@ class Nitter:
                 "Host": self.instance.split("://")[1],
             }
         )
+        if proxy:
+            self.r.proxies.update(proxy)
+            logging.debug(f"Using proxy: {proxy}")
 
     def _is_instance_encrypted(self):
         """
@@ -116,9 +114,9 @@ class Nitter:
             raise ValueError("Invalid instance")
 
         if (
-            soup.find("a", class_="profile-card-avatar").find("img")
-            and "/enc/"
-            in soup.find("a", class_="profile-card-avatar").find("img")["src"]
+                soup.find("a", class_="profile-card-avatar").find("img")
+                and "/enc/"
+                in soup.find("a", class_="profile-card-avatar").find("img")["src"]
         ):
             return True
         else:
@@ -136,25 +134,30 @@ class Nitter:
         else:
             return None
 
-    def _test_all_instances(self, endpoint, no_print=False):
+    def _test_instance(self, instance, endpoint, proxies=None):
         """
-        Test all Nitter instances when a high number of retries is detected
+        Test a single Nitter instance.
 
-        :param endpoint: endpoint to use
-        :param no_print: True if no output should be printed
+        :param instance: The instance URL.
+        :param endpoint: The endpoint to test.
+        :param proxies: List of proxy settings (dictionaries) to use for retries.
+        :return: Instance URL if working, None otherwise.
         """
-        if not no_print:
-            print("High number of retries detected. Testing all instances...")
-        working_instances = []
+        self._initialize_session(instance)
 
-        for instance in tqdm(self.instances, desc="Testing instances"):
-            self._initialize_session(instance)
+        for attempt in range(3):
             req_session = requests.Session()
             req_session.headers.update(
                 {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0"
                 }
             )
+
+            if proxies and len(proxies) > attempt:
+                proxy = proxies[attempt]
+                req_session.proxies.update(proxy)
+                logging.debug(f"Attempt {attempt + 1} using proxy: {proxy}")
+
             try:
                 r = req_session.get(
                     instance + endpoint,
@@ -163,14 +166,40 @@ class Nitter:
                 )
                 if r.ok:
                     soup = BeautifulSoup(r.text, "lxml")
-                    if soup is not None and len(
-                        soup.find_all("div", class_="timeline-item")
-                    ):
-                        working_instances.append(instance)
-            except:
-                pass
+                    if soup is not None and len(soup.find_all("div", class_="timeline-item")):
+                        return instance
+            except Exception as e:
+                continue
+
+        return None
+
+    def _test_all_instances(self, endpoint, no_print=False, proxies=None):
+        """
+        Test all Nitter instances when a high number of retries is detected.
+
+        :param endpoint: endpoint to use.
+        :param no_print: True if no output should be printed.
+        :param proxies: List of proxy settings (dictionaries) to use for retries.
+        """
+        if not no_print:
+            print("High number of retries detected. Testing all instances...")
+
+        working_instances = []
+
+        with ThreadPoolExecutor() as executor:
+            futures = {
+                executor.submit(self._test_instance, instance, endpoint, proxies): instance
+                for instance in self.instances
+            }
+
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Testing instances"):
+                result = future.result()
+                if result:
+                    working_instances.append(result)
+
         if not no_print:
             print("New working instances:", ", ".join(working_instances))
+
         self.working_instances = working_instances
 
     def _get_new_instance(self, message):
@@ -186,51 +215,52 @@ class Nitter:
         :return: None if error is found, soup otherwise
         """
         if not soup.find(
-            lambda tag: tag.name == "div"
-            and (
-                tag.get("class") == ["timeline-item"]
-                or tag.get("class") == ["timeline-item", "thread"]
-            )
+                lambda tag: tag.name == "div"
+                            and (
+                                    tag.get("class") == ["timeline-item"]
+                                    or tag.get("class") == ["timeline-item", "thread"]
+                            )
         ):
             if soup.find("div", class_="error-panel"):
-                message = (
-                    f"Fetching error: "
-                    + soup.find("div", class_="error-panel").find("span").text.strip()
-                )
+                error = soup.find("div", class_="error-panel").find("span").text.strip()
+                message = f"Fetching error: {error}"
+                logging.warning(message)
+                if error == "Instance has been rate limited.Use another instance or try again later.":
+                    return "rate_limited"
             else:
                 if soup.find("div", class_="timeline-header timeline-protected"):
                     message = "Account is protected"
                 else:
                     message = f"Empty page on {self.instance}"
-            logging.warning(message)
+                logging.warning(message)
             soup = None
         return soup
 
     def _get_page(self, endpoint, max_retries=5):
         """
-        Download page from Nitter instance
-
-        :param endpoint: endpoint to use
-        :param max_retries: max number of retries, default 5
-        :return: page content, or None if max retries reached
+        Download page from Nitter instance, retrying with different proxies if available
         """
         keep_trying = True
         soup = None
         while keep_trying and (self.retry_count < max_retries):
             try:
+                proxy_ip = self.retry_count % len(self.proxies) if self.proxies else None
+                proxy = self.proxies[proxy_ip] if self.proxies else None
+                logging.info(f"Attempt {self.retry_count + 1} using proxy: {proxy}")
+                self._initialize_session(self.instance, proxy)
+
                 r = self.r.get(
                     self.instance + endpoint,
                     cookies={"hlsPlayback": "on", "infiniteScroll": ""},
                     timeout=10,
                 )
-            except:
+            except requests.RequestException as e:
+                logging.warning(f"Request failed with error: {e}")
                 if self.retry_count == max_retries // 2:
                     if not self.skip_instance_check:
                         self._test_all_instances(endpoint)
                         if not self.working_instances:
-                            logging.warning(
-                                "All instances are unreachable. Check your request and try again."
-                            )
+                            logging.warning("All instances are unreachable. Check your request and try again.")
                             return None
                 if not self.skip_instance_check:
                     self._initialize_session(
@@ -241,59 +271,30 @@ class Nitter:
                 self.session_reset = True
                 sleep(1)
                 continue
+
             soup = BeautifulSoup(r.text, "lxml")
             if r.ok:
-                self.session_reset = False
                 soup = self._check_error_page(soup)
-                keep_trying = False
+                if soup == "rate_limited":
+                    logging.info("Rate limited. Switching proxy...")
+                    self.retry_count += 1
+                    sleep(1)
+                    continue
+                elif soup:
+                    self.session_reset = False
+                    keep_trying = False
             else:
                 soup = self._check_error_page(soup)
-                if soup is None:
+                if soup == "rate_limited":
+                    logging.info("Rate limited. Switching proxy...")
+                    self.retry_count += 1
+                    sleep(1)
+                    continue
+                elif soup is None:
                     keep_trying = False
                 else:
-                    if self.retry_count == max_retries // 2:
-                        if not self.skip_instance_check:
-                            self._test_all_instances(endpoint)
-                            if not self.working_instances:
-                                logging.warning(
-                                    "All instances are unreachable. Check your request and try again."
-                                )
-                                soup = None
-                                keep_trying = False
-                        else:
-                            self.retry_count += 1
-                    else:
-                        if "cursor" in endpoint:
-                            if not self.session_reset:
-                                logging.warning(
-                                    "Cooldown reached, trying again in 20 seconds"
-                                )
-                                self.cooldown_count += 1
-                                sleep(20)
-                            if self.cooldown_count >= 5 and not self.session_reset:
-                                if not self.skip_instance_check:
-                                    self._initialize_session()
-                                else:
-                                    self._initialize_session(self.instance)
-                                self.session_reset = True
-                                self.cooldown_count = 0
-                            elif self.session_reset:
-                                if not self.skip_instance_check:
-                                    self._initialize_session(
-                                        self._get_new_instance(
-                                            f"Error fetching {self.instance}"
-                                        )
-                                    )
-                        else:
-                            self.cooldown_count = 0
-                            if not self.skip_instance_check:
-                                self._initialize_session(
-                                    self._get_new_instance(
-                                        f"Error fetching {self.instance}"
-                                    )
-                                )
-                        self.retry_count += 1
-            sleep(2)
+                    self.retry_count += 1
+                    sleep(2)
 
         if self.retry_count >= max_retries:
             logging.warning("Max retries reached. Check your request and try again.")
@@ -375,7 +376,7 @@ class Nitter:
         """
         pictures, videos, gifs = [], [], []
         if tweet.find("div", class_="tweet-body").find(
-            "div", class_="attachments", recursive=False
+                "div", class_="attachments", recursive=False
         ):
             if is_encrypted:
                 pictures = [
@@ -671,29 +672,29 @@ class Nitter:
             to_return = False
 
         if not (
-            datetime(year=2006, month=3, day=21)
-            < datetime(year=year, month=month, day=day)
-            <= datetime.now()
+                datetime(year=2006, month=3, day=21)
+                < datetime(year=year, month=month, day=day)
+                <= datetime.now()
         ):
             to_return = False
 
         return to_return
 
     def _search(
-        self,
-        term,
-        mode,
-        number,
-        since,
-        until,
-        near,
-        language,
-        to,
-        replies,
-        filters,
-        exclude,
-        max_retries,
-        instance,
+            self,
+            term,
+            mode,
+            number,
+            since,
+            until,
+            near,
+            language,
+            to,
+            replies,
+            filters,
+            exclude,
+            max_retries,
+            instance,
     ):
         """
         Scrape the specified search terms from Nitter
@@ -818,9 +819,9 @@ class Nitter:
                 f"Current stats for {term}: {len(tweets['tweets'])} tweets, {len(tweets['threads'])} threads..."
             )
             if (
-                not (since and until)
-                and not (since)
-                and len(tweets["tweets"]) + len(tweets["threads"]) >= number
+                    not (since and until)
+                    and not (since)
+                    and len(tweets["tweets"]) + len(tweets["threads"]) >= number
             ):
                 keep_scraping = False
             else:
@@ -832,13 +833,13 @@ class Nitter:
                     if mode == "user":
                         if since or until:
                             next_page = (
-                                f"/{term}/search?"
-                                + show_more_buttons[-1].find("a")["href"].split("?")[-1]
+                                    f"/{term}/search?"
+                                    + show_more_buttons[-1].find("a")["href"].split("?")[-1]
                             )
                         else:
                             next_page = (
-                                f"/{term}?"
-                                + show_more_buttons[-1].find("a")["href"].split("?")[-1]
+                                    f"/{term}?"
+                                    + show_more_buttons[-1].find("a")["href"].split("?")[-1]
                             )
                     else:
                         next_page = "/search" + show_more_buttons[-1].find("a")["href"]
@@ -893,20 +894,20 @@ class Nitter:
             return None
 
     def get_tweets(
-        self,
-        terms,
-        mode="term",
-        number=-1,
-        since=None,
-        until=None,
-        near=None,
-        language=None,
-        to=None,
-        replies=False,
-        filters=None,
-        exclude=None,
-        max_retries=5,
-        instance=None,
+            self,
+            terms,
+            mode="term",
+            number=-1,
+            since=None,
+            until=None,
+            near=None,
+            language=None,
+            to=None,
+            replies=False,
+            filters=None,
+            exclude=None,
+            max_retries=5,
+            instance=None,
     ):
         """
         Scrape the specified term from Nitter
@@ -1039,10 +1040,10 @@ class Nitter:
             ).decode("utf-8")
         elif soup.find("a", class_="profile-card-avatar").find("img"):
             profile_image = (
-                "https://"
-                + unquote(
-                    soup.find("a", class_="profile-card-avatar").find("img")["src"]
-                ).split("/pic/")[1]
+                    "https://"
+                    + unquote(
+                soup.find("a", class_="profile-card-avatar").find("img")["src"]
+            ).split("/pic/")[1]
             )
         else:
             profile_image = ""

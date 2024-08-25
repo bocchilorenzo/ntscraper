@@ -1,8 +1,9 @@
 import unittest
 from ntscraper import Nitter
 
+
 class TestSearch(unittest.TestCase):
-    def scrape_term(self):
+    def test_scrape_term(self):
         """
         Test scraping a term
         """
@@ -15,7 +16,7 @@ class TestSearch(unittest.TestCase):
         Test scraping a user
         """
         nitter = Nitter()
-        tweets = nitter.get_tweets("X", mode='user', number=10)
+        tweets = nitter.get_tweets("@X", mode='user', number=10)
         self.assertGreater(len(tweets['tweets']), 0)
 
     def scrape_hashtag(self):
@@ -23,7 +24,7 @@ class TestSearch(unittest.TestCase):
         Test scraping a hashtag
         """
         nitter = Nitter()
-        tweets = nitter.get_tweets("twitter", 'hashtag')
+        tweets = nitter.get_tweets("ai", 'hashtag')
         self.assertGreater(len(tweets['tweets']), 0)
 
     def random_instance(self):

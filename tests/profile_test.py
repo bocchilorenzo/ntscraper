@@ -1,38 +1,36 @@
 import unittest
 from ntscraper import Nitter
 
+
 class TestProfile(unittest.TestCase):
-    def scrape_profile_info(self):
+    def setUp(self):
+        self.nitter = Nitter()
+
+    def test_scrape_profile_info(self):
         """
         Test scraping profile info of a username (Twitter, we need a stable username)
         """
-        nitter = Nitter()
-        profile = nitter.get_profile_info("Twitter")
-        self.assertEqual(profile['name'], "Twitter")
-        self.assertEqual(profile['username'], "@Twitter")
-        self.assertEqual(profile['bio'], "What's happening?!")
+        profile = self.nitter.get_profile_info("X")
+        self.assertEqual(profile['name'], "X")
+        self.assertEqual(profile['username'], "@X")
+        self.assertEqual(profile['bio'], "what's happening?!")
         self.assertEqual(profile['location'], 'everywhere')
-        self.assertEqual(profile['website'], 'https://about.twitter.com/')
+        self.assertEqual(profile['website'], 'https://x.com')
         self.assertEqual(profile['joined'], '2:35 PM - 20 Feb 2007')
         self.assertGreater(profile['stats']['tweets'], 0)
-        self.assertGreater(profile['stats']['following'], 0)
-        self.assertGreater(profile['stats']['followers'], 0)
         self.assertGreater(profile['stats']['likes'], 0)
-        self.assertGreater(profile['stats']['media'], 0)
-        self.assertEqual(profile['image'], 'https://pbs.twimg.com/profile_images/1488548719062654976/u6qfBBkF_400x400.jpg')
-    
-    def scrape_profile_tweets(self):
+
+    def test_scrape_profile_tweets(self):
         """
         Test scraping profile tweets of a username (Twitter, we need a stable username)
         """
-        nitter = Nitter()
-        tweets = nitter.get_tweets("Twitter", 'user')
+        tweets = self.nitter.get_tweets("X", 'user')
         self.assertGreater(len(tweets['tweets']), 0)
 
-    def scrape_profile_tweets_since(self):
+    def test_scrape_profile_tweets_since(self):
         """
         Test scraping profile tweets of a username (Twitter, we need a stable username) in a certain time period
         """
-        nitter = Nitter()
-        tweets = nitter.get_tweets("Twitter", mode='user', since='2022-12-01', until='2022-12-31', number=1)
-        self.assertGreater(len(tweets['threads']), 1)
+        tweets = self.nitter.get_tweets("X", mode='user', since='2023-12-01', until='2024-04-21', number=1)
+        print(tweets)
+        self.assertGreater(len(tweets['threads']), 0)

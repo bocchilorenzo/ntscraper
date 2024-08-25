@@ -8,7 +8,7 @@ class TestGetTweetById(unittest.TestCase):
         Test fetching a tweet by its ID.
         """
         nitter = Nitter()
-        tweet = nitter.get_tweet_by_id("X", "1824507305389592885", instance="https://nt.vern.cc")
+        tweet = nitter.get_tweet_by_id("X", "1824507305389592885")
         self.assertIsNotNone(tweet, "Tweet should note be None")
         self.assertEqual(tweet['user']['username'], "@X", "Username should match the expected username")
         self.assertEqual(tweet['text'], "since it’s friday, let’s have some fun!  comment with a @grok generated pic"
