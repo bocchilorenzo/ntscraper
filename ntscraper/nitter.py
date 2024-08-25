@@ -13,6 +13,9 @@ import logging
 from logging.handlers import QueueHandler
 from multiprocessing import Pool, Queue, cpu_count
 from sys import stdout
+
+from requests import ConnectTimeout
+from requests.exceptions import ProxyError
 from tqdm import tqdm
 
 logging.basicConfig(
@@ -245,11 +248,11 @@ class Nitter:
         if self.proxies:
             random.shuffle(self.proxies)
 
-        while keep_trying and (self.retry_count < max_retries):
+        while keep_trying and (self.retry_count < max_retries) and self.proxies:
             try:
                 proxy_ip = self.retry_count % len(self.proxies) if self.proxies else None
                 proxy = self.proxies[proxy_ip] if self.proxies else None
-                logging.info(f"Attempt at {endpoint} numer {self.retry_count + 1} using random proxy: {proxy}")
+                logging.info(f"Attempt at {endpoint} number {self.retry_count + 1} using random proxy: {proxy}")
                 self._initialize_session(self.instance, proxy)
 
                 r = self.r.get(
@@ -257,22 +260,16 @@ class Nitter:
                     cookies={"hlsPlayback": "on", "infiniteScroll": ""},
                     timeout=10,
                 )
+            except (ProxyError, ConnectTimeout) as e:
+                logging.warning(f"Request failed with error: {e}")
+                if proxy and proxy in self.proxies:
+                    logging.info(f"Removing failed proxy: {proxy}")
+                    self.proxies.remove(proxy)
+                self.retry_count += 1
+                continue
             except requests.RequestException as e:
                 logging.warning(f"Request failed with error: {e}")
-                if self.retry_count == max_retries // 2:
-                    if not self.skip_instance_check:
-                        self._test_all_instances(endpoint)
-                        if not self.working_instances:
-                            logging.warning("All instances are unreachable. Check your request and try again.")
-                            return None
-                if not self.skip_instance_check:
-                    self._initialize_session(
-                        instance=self._get_new_instance(f"{self.instance} unreachable")
-                    )
                 self.retry_count += 1
-                self.cooldown_count = 0
-                self.session_reset = True
-                sleep(1)
                 continue
 
             soup = BeautifulSoup(r.text, "lxml")
