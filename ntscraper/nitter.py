@@ -1,3 +1,4 @@
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -228,13 +229,14 @@ class Nitter:
                 error = soup.find("div", class_="error-panel").find("span").text.strip()
                 message = f"Fetching error: {error}"
                 logging.warning(message)
-                if error == "Instance has been rate limited.Use another instance or try again later.":
+                if "rate limited" in error.lower():
                     return "rate_limited"
             else:
                 if soup.find("div", class_="timeline-header timeline-protected"):
                     message = "Account is protected"
                 else:
                     message = f"Empty page on {self.instance}"
+                    # FIXME return "empty"
                 logging.warning(message)
             soup = None
         return soup
@@ -685,24 +687,26 @@ class Nitter:
             term,
             mode,
             number,
-            since,
-            until,
-            near,
-            language,
-            to,
-            replies,
-            filters,
-            exclude,
-            max_retries,
-            instance,
+            until=None,
+            near=None,
+            language=None,
+            to=None,
+            replies=False,
+            filters=None,
+            exclude=None,
+            max_retries=5,
+            instance=None,
+            ignore_retweets=False,
+            ignore_pinned=False,
+            since_id=None,
+            since_date=None
     ):
         """
-        Scrape the specified search terms from Nitter
+        Scrape the specified search terms from Nitter.
 
-        :param term: term to seach for
+        :param term: term to search for.
         :param mode: search mode.
         :param number: number of tweets to scrape.
-        :param since: date to start scraping from.
         :param until: date to stop scraping at.
         :param near: location to search near.
         :param language: language of the tweets.
@@ -712,15 +716,24 @@ class Nitter:
         :param exclude: list of filters to exclude.
         :param max_retries: max retries to scrape a page.
         :param instance: Nitter instance to use.
+        :param ignore_retweets: If True, retweets will be ignored.
+        :param ignore_pinned: If True, pinned tweets will be ignored.
+        :param since_id: Fetch tweets since this tweet ID.
+        :param since_date: Fetch tweets since this date (format: 'YYYY-MM-DD').
         :return: dictionary of tweets and threads for the term.
         """
+        # Ensure only one of since_id or since_date is provided
+        if since_id and since_date:
+            raise ValueError("Provide either 'since_id' or 'since_date', but not both.")
+
         tweets = {"tweets": [], "threads": []}
+
         if mode == "hashtag":
             endpoint = "/search?f=tweets&q=%23" + term
         elif mode == "term":
             endpoint = "/search?f=tweets&q=" + term
         elif mode == "user":
-            if since or until or filters or exclude or near:
+            if until or filters or exclude or near:
                 endpoint = f"/{term}/search?f=tweets&q="
             else:
                 endpoint = f"/{term}"
@@ -736,14 +749,6 @@ class Nitter:
 
         if to:
             endpoint += f"+to%3A{to}"
-
-        if since:
-            if self._check_date_validity(since):
-                endpoint += f"&since={since}"
-            else:
-                raise ValueError(
-                    "Invalid 'since' date. Use the YYYY-MM-DD format and make sure the date is valid."
-                )
 
         if until:
             if self._check_date_validity(until):
@@ -789,12 +794,34 @@ class Nitter:
 
         number = float("inf") if number == -1 else number
         keep_scraping = True
+
         while keep_scraping:
             thread = []
 
             for tweet in soup.find_all("div", class_="timeline-item"):
                 if len(tweet["class"]) == 1:
                     to_append = self._extract_tweet(tweet, is_encrypted)
+
+                    # Apply filters to ignore retweets and/or pinned tweets
+                    if ignore_retweets and to_append["is-retweet"]:
+                        continue
+                    if ignore_pinned and to_append["is-pinned"]:
+                        continue
+
+                    # Extract the tweet ID
+                    current_tweet_id = int(re.search(r'/status/(\d+)', to_append["link"]).group(1))
+
+                    # Extract the tweet date
+                    tweet_date = datetime.strptime(to_append["date"].split(' · ')[0], '%b %d, %Y')
+
+                    # If since_id is present, stop when we reach it
+                    if since_id and current_tweet_id <= int(since_id):
+                        return tweets
+
+                    # If since_date is present, stop when we reach it
+                    if since_date and tweet_date < datetime.strptime(since_date, '%Y-%m-%d'):
+                        return tweets
+
                     # Extract tweets
                     if len(tweets["tweets"]) + len(tweets["threads"]) < number:
                         if self._get_tweet_link(tweet) not in already_scraped:
@@ -806,6 +833,13 @@ class Nitter:
                 else:
                     if "thread" in tweet["class"]:
                         to_append = self._extract_tweet(tweet, is_encrypted)
+
+                        # Apply filters to ignore retweets and/or pinned tweets
+                        if ignore_retweets and to_append["is-retweet"]:
+                            continue
+                        if ignore_pinned and to_append["is-pinned"]:
+                            continue
+
                         # Extract threads
                         if self._get_tweet_link(tweet) not in already_scraped:
                             thread.append(to_append)
@@ -818,11 +852,8 @@ class Nitter:
             logging.info(
                 f"Current stats for {term}: {len(tweets['tweets'])} tweets, {len(tweets['threads'])} threads..."
             )
-            if (
-                    not (since and until)
-                    and not (since)
-                    and len(tweets["tweets"]) + len(tweets["threads"]) >= number
-            ):
+
+            if len(tweets["tweets"]) + len(tweets["threads"]) >= number:
                 keep_scraping = False
             else:
                 sleep(uniform(1, 2))
@@ -831,7 +862,7 @@ class Nitter:
                 show_more_buttons = soup.find_all("div", class_="show-more")
                 if soup.find_all("div", class_="show-more"):
                     if mode == "user":
-                        if since or until:
+                        if until:
                             next_page = (
                                     f"/{term}/search?"
                                     + show_more_buttons[-1].find("a")["href"].split("?")[-1]
@@ -848,6 +879,7 @@ class Nitter:
                         keep_scraping = False
                 else:
                     keep_scraping = False
+
         return tweets
 
     def _search_dispatch(self, args):
@@ -860,6 +892,72 @@ class Nitter:
         :return: URL of random Nitter instance
         """
         return random.choice(self.working_instances)
+
+    def get_tweets_since(self, username, since_id=None, since_date=None, count=500, max_retries=5):
+        """
+        Fetch tweets from a user since a specific tweet ID or date, excluding pinned tweets.
+
+        :param username: The username of the Twitter account.
+        :param since_id: The tweet ID to start fetching from. If provided, this takes precedence over since_date.
+        :param since_date: The date to start fetching from (YYYY-MM-DD). Ignored if since_id is provided.
+        :param count: The maximum number of tweets to fetch.
+        :param max_retries: The maximum number of retries for fetching a page.
+        :return: A list of tweets since the specified ID or date.
+        """
+        if not since_id and not since_date:
+            raise ValueError("Either since_id or since_date must be provided")
+
+        tweets = []
+        endpoint = f"/{username}"
+
+        self._initialize_session(self.instance)
+        is_instance_encrypted = self._is_instance_encrypted()
+        keep_scraping = True
+        soup = self._get_page(endpoint, max_retries)
+        while keep_scraping:
+            if soup is None:
+                break
+            for tweet in soup.find_all("div", class_="timeline-item"):
+                current_tweet = self._extract_tweet(tweet, is_instance_encrypted)
+
+                if current_tweet["is-pinned"]:
+                    continue  # Skip pinned tweets
+
+                if current_tweet["is-retweet"]:
+                    continue  # Skip retweets
+
+                if since_id:
+                    current_tweet_id = int(re.search(r'/status/(\d+)', current_tweet["link"]).group(1))
+                    if current_tweet_id <= int(since_id):
+                        return tweets[:count]
+
+                if since_date:
+                    tweet_date = datetime.strptime(current_tweet["date"].split(' · ')[0], '%b %d, %Y')
+                    if tweet_date < datetime.strptime(since_date, '%Y-%m-%d'):
+                        return tweets[:count]
+
+                tweets.append(current_tweet)
+
+                if len(tweets) >= count:
+                    keep_scraping = False
+                    break
+
+            show_more_buttons = soup.find_all("div", class_="show-more")
+            if soup.find_all("div", class_="show-more"):
+                next_page = (
+                        f"/{username}?"
+                        + show_more_buttons[-1].find("a")["href"].split("?")[-1]
+                )
+                soup = self._get_page(next_page, max_retries)
+                if soup is None:
+                    break
+            else:
+                break
+            logging.info(
+                f"Current stats for {username}: {len(tweets)} tweets"
+            )
+
+        return tweets[:count]
 
     def get_tweet_by_id(self, username, tweet_id, instance=None, max_retries=5):
         """
@@ -898,7 +996,8 @@ class Nitter:
             terms,
             mode="term",
             number=-1,
-            since=None,
+            since_id=None,
+            since_date=None,
             until=None,
             near=None,
             language=None,
@@ -908,33 +1007,37 @@ class Nitter:
             exclude=None,
             max_retries=5,
             instance=None,
+            ignore_retweets=False,
+            ignore_pinned=False,
     ):
         """
-        Scrape the specified term from Nitter
+        Scrape the specified term from Nitter.
 
-        :param terms: string/s to search for
-        :param mode: search mode. Default is 'term', can also be 'hashtag' or 'user'
+        :param terms: string/s to search for.
+        :param mode: search mode. Default is 'term', can also be 'hashtag' or 'user'.
         :param number: number of tweets to scrape. Default is -1 (to not set a limit).
-        :param since: date to start scraping from, formatted as YYYY-MM-DD. Default is None
-        :param until: date to stop scraping at, formatted as YYYY-MM-DD. Default is None
-        :param near: near location of the tweets. Default is None (anywhere)
-        :param language: language of the tweets. Default is None (any language)
-        :param to: user to which the tweets are directed. Default is None (any user)
-        :param replies: True if both tweets and replies are needed. If 'filters' or 'exclude' are set, this option will be overridden. Default is False
-        :param filters: list of filters to apply. Default is None
-        :param exclude: list of filters to exclude. Default is None
-        :param max_retries: max retries to scrape a page. Default is 5
-        :param instance: Nitter instance to use. Default is None
-        :return: dictionary or array with dictionaries (in case of multiple terms) of the tweets and threads for the provided terms
+        :param since_id: tweet ID to start scraping from. Default is None.
+        :param since_date: date to start scraping from, formatted as YYYY-MM-DD. Default is None.
+        :param until: date to stop scraping at, formatted as YYYY-MM-DD. Default is None.
+        :param near: near location of the tweets. Default is None (anywhere).
+        :param language: language of the tweets. Default is None (any language).
+        :param to: user to which the tweets are directed. Default is None (any user).
+        :param replies: True if both tweets and replies are needed. If 'filters' or 'exclude' are set, this option will be overridden. Default is False.
+        :param filters: list of filters to apply. Default is None.
+        :param exclude: list of filters to exclude. Default is None.
+        :param max_retries: max retries to scrape a page. Default is 5.
+        :param instance: Nitter instance to use. Default is None.
+        :param ignore_retweets: If True, retweets will be ignored.
+        :param ignore_pinned: If True, pinned tweets will be ignored.
+        :return: dictionary or array with dictionaries (in case of multiple terms) of the tweets and threads for the provided terms.
         """
-        if type(terms) == str:
+        if isinstance(terms, str):
             term = terms.strip()
 
             return self._search(
                 term,
                 mode,
                 number,
-                since,
                 until,
                 near,
                 language,
@@ -944,6 +1047,10 @@ class Nitter:
                 exclude,
                 max_retries,
                 instance,
+                ignore_retweets=ignore_retweets,
+                ignore_pinned=ignore_pinned,
+                since_id=since_id,
+                since_date=since_date,
             )
         elif len(terms) == 1:
             term = terms[0].strip()
@@ -952,7 +1059,7 @@ class Nitter:
                 term,
                 mode,
                 number,
-                since,
+
                 until,
                 near,
                 language,
@@ -962,6 +1069,10 @@ class Nitter:
                 exclude,
                 max_retries,
                 instance,
+                ignore_retweets=ignore_retweets,
+                ignore_pinned=ignore_pinned,
+                since_id=since_id,
+                since_date=since_date,
             )
         else:
             if len(terms) > cpu_count():
@@ -974,7 +1085,8 @@ class Nitter:
                     term.strip(),
                     mode,
                     number,
-                    since,
+                    since_id,
+                    since_date,
                     until,
                     near,
                     language,
@@ -984,6 +1096,8 @@ class Nitter:
                     exclude,
                     max_retries,
                     instance,
+                    ignore_retweets,
+                    ignore_pinned,
                 )
                 for term in terms
             ]
