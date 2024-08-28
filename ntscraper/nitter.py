@@ -722,10 +722,11 @@ class Nitter:
         :param since_date: Fetch tweets since this date (format: 'YYYY-MM-DD').
         :return: dictionary of tweets and threads for the term.
         """
-        # Ensure only one of since_id or since_date is provided
         if since_id and since_date:
             raise ValueError("Provide either 'since_id' or 'since_date', but not both.")
 
+        if (since_id or since_date) and number != -1:
+            raise ValueError("When using 'since_id' or 'since_date', 'number' must be set to -1 (unlimited).")
         tweets = {"tweets": [], "threads": []}
 
         if mode == "hashtag":
@@ -802,27 +803,22 @@ class Nitter:
                 if len(tweet["class"]) == 1:
                     to_append = self._extract_tweet(tweet, is_encrypted)
 
-                    # Apply filters to ignore retweets and/or pinned tweets
                     if ignore_retweets and to_append["is-retweet"]:
                         continue
                     if ignore_pinned and to_append["is-pinned"]:
                         continue
 
-                    # Extract the tweet ID
                     current_tweet_id = int(re.search(r'/status/(\d+)', to_append["link"]).group(1))
 
-                    # Extract the tweet date
-                    tweet_date = datetime.strptime(to_append["date"].split(' · ')[0], '%b %d, %Y')
-
-                    # If since_id is present, stop when we reach it
                     if since_id and current_tweet_id <= int(since_id):
                         return tweets
 
-                    # If since_date is present, stop when we reach it
-                    if since_date and tweet_date < datetime.strptime(since_date, '%Y-%m-%d'):
-                        return tweets
+                    if since_date:
+                        since_date_formatted = datetime.strptime(to_append["date"].split(' · ')[0], '%b %d, %Y').timestamp()
+                        tweet_date_formatted = datetime.strptime(since_date, '%Y-%m-%d').timestamp()
+                        if tweet_date_formatted >= since_date_formatted:
+                            return tweets
 
-                    # Extract tweets
                     if len(tweets["tweets"]) + len(tweets["threads"]) < number:
                         if self._get_tweet_link(tweet) not in already_scraped:
                             tweets["tweets"].append(to_append)
@@ -834,13 +830,11 @@ class Nitter:
                     if "thread" in tweet["class"]:
                         to_append = self._extract_tweet(tweet, is_encrypted)
 
-                        # Apply filters to ignore retweets and/or pinned tweets
                         if ignore_retweets and to_append["is-retweet"]:
                             continue
                         if ignore_pinned and to_append["is-pinned"]:
                             continue
 
-                        # Extract threads
                         if self._get_tweet_link(tweet) not in already_scraped:
                             thread.append(to_append)
                             already_scraped.add(self._get_tweet_link(tweet))
@@ -858,7 +852,6 @@ class Nitter:
             else:
                 sleep(uniform(1, 2))
 
-                # Go to the next page
                 show_more_buttons = soup.find_all("div", class_="show-more")
                 if soup.find_all("div", class_="show-more"):
                     if mode == "user":
@@ -892,72 +885,6 @@ class Nitter:
         :return: URL of random Nitter instance
         """
         return random.choice(self.working_instances)
-
-    def get_tweets_since(self, username, since_id=None, since_date=None, count=500, max_retries=5):
-        """
-        Fetch tweets from a user since a specific tweet ID or date, excluding pinned tweets.
-
-        :param username: The username of the Twitter account.
-        :param since_id: The tweet ID to start fetching from. If provided, this takes precedence over since_date.
-        :param since_date: The date to start fetching from (YYYY-MM-DD). Ignored if since_id is provided.
-        :param count: The maximum number of tweets to fetch.
-        :param max_retries: The maximum number of retries for fetching a page.
-        :return: A list of tweets since the specified ID or date.
-        """
-        if not since_id and not since_date:
-            raise ValueError("Either since_id or since_date must be provided")
-
-        tweets = []
-        endpoint = f"/{username}"
-
-        self._initialize_session(self.instance)
-        is_instance_encrypted = self._is_instance_encrypted()
-        keep_scraping = True
-        soup = self._get_page(endpoint, max_retries)
-        while keep_scraping:
-            if soup is None:
-                break
-            for tweet in soup.find_all("div", class_="timeline-item"):
-                current_tweet = self._extract_tweet(tweet, is_instance_encrypted)
-
-                if current_tweet["is-pinned"]:
-                    continue  # Skip pinned tweets
-
-                if current_tweet["is-retweet"]:
-                    continue  # Skip retweets
-
-                if since_id:
-                    current_tweet_id = int(re.search(r'/status/(\d+)', current_tweet["link"]).group(1))
-                    if current_tweet_id <= int(since_id):
-                        return tweets[:count]
-
-                if since_date:
-                    tweet_date = datetime.strptime(current_tweet["date"].split(' · ')[0], '%b %d, %Y')
-                    if tweet_date < datetime.strptime(since_date, '%Y-%m-%d'):
-                        return tweets[:count]
-
-                tweets.append(current_tweet)
-
-                if len(tweets) >= count:
-                    keep_scraping = False
-                    break
-
-            show_more_buttons = soup.find_all("div", class_="show-more")
-            if soup.find_all("div", class_="show-more"):
-                next_page = (
-                        f"/{username}?"
-                        + show_more_buttons[-1].find("a")["href"].split("?")[-1]
-                )
-                soup = self._get_page(next_page, max_retries)
-                if soup is None:
-                    break
-            else:
-                break
-            logging.info(
-                f"Current stats for {username}: {len(tweets)} tweets"
-            )
-
-        return tweets[:count]
 
     def get_tweet_by_id(self, username, tweet_id, instance=None, max_retries=5):
         """
