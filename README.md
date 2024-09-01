@@ -85,6 +85,20 @@ The multiprocessing code needs to run in a `if __name__ == "__main__"` block to 
 
 NOTE: using multiprocessing on public instances is highly discouraged since it puts too much load on the servers and could potentially also get you rate limited. Please only use it on your local instance.
 
+### Get single tweet
+
+```python
+tweet = scraper.get_tweet_by_id("x", "1826317783430303888")
+```
+
+Parameters:
+- username: username of the tweet's author
+- tweet_id: ID of the tweet
+- instane: Nitter instance to use. Default is None
+- max_retries: max retries to scrape a page. Default is 5
+
+Returns a dictionary with the tweet's content.
+
 ### Get profile information
 
 ```python
