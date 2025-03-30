@@ -476,7 +476,7 @@ class Nitter:
         :param is_encrypted: True if instance uses encrypted media
         :return: dictionary of user
         """
-        avatar = "https://pbs.twimg.com/default_avatar.png"  # Default avatar
+        avatar = "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png"  # Default avatar
         profile_id = "unknown"  # Default profile ID
 
         if is_encrypted:
@@ -487,14 +487,14 @@ class Nitter:
                     .encode("utf-8")
                 ).decode("utf-8")
             except:
-                avatar = "https://pbs.twimg.com/default_avatar.png"  # Fallback avatar
+                avatar = "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png"  # Fallback avatar
 
         else:
             avatar_tag = tweet.find("img", class_="avatar")
             if avatar_tag and avatar_tag.has_attr("src"):
                 avatar = avatar_tag["src"]  # Successfully getting avatar
             else:
-                avatar = "https://pbs.twimg.com/default_avatar.png"  # Fallback avatar
+                avatar = "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png"  # Fallback avatar
 
         # Extract profile_id directly from the avatar URL if available
         if "profile_images" in avatar:
