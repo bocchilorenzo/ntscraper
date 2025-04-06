@@ -476,8 +476,9 @@ class Nitter:
         :param is_encrypted: True if instance uses encrypted media
         :return: dictionary of user
         """
-        avatar = ""
-        profile_id = ""
+        avatar = "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png"  # Default avatar
+        profile_id = "unknown"  # Default profile ID
+
         if is_encrypted:
             try:
                 avatar = "https://pbs.twimg.com/" + b64decode(
@@ -486,30 +487,19 @@ class Nitter:
                     .encode("utf-8")
                 ).decode("utf-8")
             except:
-                avatar = ""
+                avatar = "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png"  # Fallback avatar
 
-            if tweet.find("img", class_="avatar"):
-                profile_id = (
-                    b64decode(
-                        tweet.find("img", class_="avatar")["src"]
-                        .split("/enc/")[1]
-                        .encode("utf-8")
-                    )
-                    .decode("utf-8")
-                    .split("/profile_images/")[1]
-                    .split("/")[0]
-                )
         else:
-            avatar = "https://pbs.twimg.com" + unquote(
-                tweet.find("img", class_="avatar")["src"].split("/pic")[1]
-            )
+            avatar_tag = tweet.find("img", class_="avatar")
+            if avatar_tag and avatar_tag.has_attr("src"):
+                avatar = avatar_tag["src"]  # Successfully getting avatar
+            else:
+                avatar = "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png"  # Fallback avatar
 
-            if tweet.find("img", class_="avatar"):
-                profile_id = (
-                    unquote(tweet.find("img", class_="avatar")["src"])
-                    .split("profile_images/")[1]
-                    .split("/")[0]
-                )
+        # Extract profile_id directly from the avatar URL if available
+        if "profile_images" in avatar:
+            profile_id = avatar.split("/profile_images/")[1].split("/")[0]
+
         return {
             "name": tweet.find("a", class_="fullname").text.strip(),
             "username": tweet.find("a", class_="username").text.strip(),
