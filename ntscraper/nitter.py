@@ -492,7 +492,7 @@ class Nitter:
         else:
             avatar_tag = tweet.find("img", class_="avatar")
             if avatar_tag and avatar_tag.has_attr("src"):
-                avatar = avatar_tag["src"]  # Successfully getting avatar
+                avatar = unquote(avatar_tag["src"])  # Successfully getting avatar
             else:
                 avatar = "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png"  # Fallback avatar
 
