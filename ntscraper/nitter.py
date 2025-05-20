@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import random
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 from time import sleep
 from base64 import b64decode
 from random import uniform
@@ -547,9 +547,8 @@ class Nitter:
         :param tweet: tweet to extract link from
         :return: link of tweet
         """
-        return (
-            "https://twitter.com" + tweet.find("a")["href"] if tweet.find("a") else ""
-        )
+        tweet_date = tweet.find("span", class_="tweet-date")
+        return "https://twitter.com" + tweet_date.find("a")["href"] if tweet_date else ""
 
     def _get_external_link(self, tweet):
         """
@@ -616,8 +615,13 @@ class Nitter:
         # Extract media from the tweet
         pictures, videos, gifs = self._get_tweet_media(tweet, is_encrypted)
 
+        # Extract the tweet id
+        link = self._get_tweet_link(tweet)
+        id = urlparse(link).path.rsplit("/", 1)[-1]
+
         return {
-            "link": self._get_tweet_link(tweet),
+            "id": id,
+            "link": link,
             "text": self._get_tweet_text(tweet),
             "user": self._get_user(tweet, is_encrypted),
             "date": self._get_tweet_date(tweet),
