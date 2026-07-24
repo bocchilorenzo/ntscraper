@@ -498,8 +498,16 @@ class Nitter:
 
         # Extract profile_id directly from the avatar URL if available
         if "profile_images" in avatar:
-            profile_id = avatar.split("/profile_images/")[1].split("/")[0]
-
+            try:
+                profile_id_candidate = avatar.split("/profile_images/")[1].split("/")[0]
+                if profile_id_candidate.isdigit():
+                    profile_id = profile_id_candidate
+                else:
+                    profile_id = "unknown"
+                    logging.warning(f"Invalid profile id format extracted from avatar: {avatar}")
+            except IndexError:
+                profile_id = "unknown"
+                logging.error(f"IndexError when extracting profile id from avatar: {avatar}")
         return {
             "name": tweet.find("a", class_="fullname").text.strip(),
             "username": tweet.find("a", class_="username").text.strip(),
