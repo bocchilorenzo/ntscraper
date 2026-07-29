@@ -374,18 +374,20 @@ class Nitter:
         :return: lists of images, videos and gifs, or empty lists if no media is found
         """
         pictures, videos, gifs = [], [], []
-        if tweet.find("div", class_="tweet-body").find(
-            "div", class_="attachments", recursive=False
-        ):
+        tweet_body = tweet.find("div", class_="tweet-body")
+        attachments = (
+            tweet_body.find("div", class_="attachments", recursive=False)
+            if tweet_body
+            else None
+        )
+        if attachments:
             if is_encrypted:
                 pictures = [
                     "https://pbs.twimg.com/"
                     + b64decode(img["src"].split("/")[-1].encode("utf-8"))
                     .decode("utf-8")
                     .split("?")[0]
-                    for img in tweet.find("div", class_="tweet-body")
-                    .find("div", class_="attachments", recursive=False)
-                    .find_all("img")
+                    for img in attachments.find_all("img")
                 ]
                 videos = [
                     b64decode(video["data-url"].split("/")[-1].encode("utf-8")).decode(
@@ -393,40 +395,30 @@ class Nitter:
                     )
                     if "data-url" in video.attrs
                     else video.find("source")["src"]
-                    for video in tweet.find("div", class_="tweet-body")
-                    .find("div", class_="attachments", recursive=False)
-                    .find_all("video", class_="")
+                    for video in attachments.find_all("video", class_="")
                 ]
                 gifs = [
                     "https://"
                     + b64decode(
                         gif.source["src"].split("/")[-1].encode("utf-8")
                     ).decode("utf-8")
-                    for gif in tweet.find("div", class_="tweet-body")
-                    .find("div", class_="attachments", recursive=False)
-                    .find_all("video", class_="gif")
+                    for gif in attachments.find_all("video", class_="gif")
                 ]
             else:
                 pictures = [
                     "https://pbs.twimg.com"
                     + unquote(img["src"].split("/pic")[1]).split("?")[0]
-                    for img in tweet.find("div", class_="tweet-body")
-                    .find("div", class_="attachments", recursive=False)
-                    .find_all("img")
+                    for img in attachments.find_all("img")
                 ]
                 videos = [
                     unquote("https" + video["data-url"].split("https")[1])
                     if "data-url" in video.attrs
                     else video.find("source")["src"]
-                    for video in tweet.find("div", class_="tweet-body")
-                    .find("div", class_="attachments", recursive=False)
-                    .find_all("video", class_="")
+                    for video in attachments.find_all("video", class_="")
                 ]
                 gifs = [
                     unquote("https://" + gif.source["src"].split("/pic/")[1])
-                    for gif in tweet.find("div", class_="tweet-body")
-                    .find("div", class_="attachments", recursive=False)
-                    .find_all("video", class_="gif")
+                    for gif in attachments.find_all("video", class_="gif")
                 ]
         return pictures, videos, gifs
 

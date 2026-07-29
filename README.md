@@ -69,6 +69,29 @@ Parameters:
 
 Returns a dictionary with tweets and threads for the term.
 
+### Search with Xquik
+
+Xquik is an optional hosted search backend when a Nitter instance is unavailable.
+Set an API key, then import the separate `Xquik` client:
+
+```python
+import os
+
+from ntscraper import Xquik
+
+scraper = Xquik(api_key=os.environ["XQUIK_API_KEY"])
+result = scraper.get_tweets("open source", mode="term", number=20)
+```
+
+The client supports term, hashtag, and user searches. It returns Nitter-compatible
+`tweets` and `threads` fields plus `has_next_page`, `next_cursor`, and the raw API
+response. Pass `next_cursor` back as `cursor` to fetch another page. The hosted API
+accepts at most 200 results per request. See the
+[Xquik API documentation](https://docs.xquik.com/api-reference/overview) for
+authentication and endpoint details.
+
+Xquik is an independent third-party service. Not affiliated with X Corp. "Twitter" and "X" are trademarks of X Corp.
+
 #### Multiprocessing
 
 You can also scrape multiple terms at once using multiprocessing:
